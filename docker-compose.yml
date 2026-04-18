@@ -85,6 +85,12 @@ services:
       - ./scripts:/app/scripts
       - realms-raw-cache:/app/data/raw
     command: ["python", "-m", "scripts.run_ingestor"]
+    healthcheck:
+      test: ["CMD", "python", "-c", "import os, sys; sys.exit(0 if os.path.exists('/proc/1/status') else 1)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
     restart: unless-stopped
     networks:
       - estimabio-network
@@ -112,6 +118,12 @@ services:
       - ./realms:/app/realms
       - ./scripts:/app/scripts
     command: ["python", "-m", "scripts.run_neo4j_sync"]
+    healthcheck:
+      test: ["CMD", "python", "-c", "import os, sys; sys.exit(0 if os.path.exists('/proc/1/status') else 1)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
     restart: unless-stopped
     networks:
       - estimabio-network
