@@ -10,9 +10,9 @@ import os
 import signal
 import time
 from dataclasses import asdict
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.orm import Session
 
 from realms.ingestion.chunker import chunk_text
@@ -28,8 +28,25 @@ log = logging.getLogger("realms.ingestor")
 POLL_INTERVAL = int(os.getenv("REALMS_INGESTOR_POLL_INTERVAL", "20"))
 IDLE_SLEEP = int(os.getenv("REALMS_INGESTOR_IDLE_SLEEP", "60"))
 MAX_CHUNKS_PER_SOURCE = int(os.getenv("REALMS_INGESTOR_MAX_CHUNKS", "20"))
+STUCK_PROCESSING_MINUTES = int(os.getenv("REALMS_INGESTOR_STUCK_MINUTES", "30"))
 
 _shutdown = False
+
+
+def _reset_orphaned_sources(session: Session) -> int:
+    """Reset 'processing' sources back to 'pending' if untouched for too long.
+
+    Handles worker crashes / restarts where a source was claimed but never completed.
+    """
+    cutoff = datetime.now(timezone.utc) - timedelta(minutes=STUCK_PROCESSING_MINUTES)
+    result = session.execute(
+        update(IngestionSource)
+        .where(IngestionSource.ingestion_status == "processing")
+        .where(IngestionSource.updated_at < cutoff)
+        .values(ingestion_status="pending", error_log=None)
+    )
+    session.commit()
+    return result.rowcount or 0
 
 
 def _install_signal_handlers() -> None:
@@ -172,6 +189,10 @@ def run_forever() -> int:
     _install_signal_handlers()
     log.info("REALMS ingestor starting. poll=%ds idle=%ds max_chunks=%d",
              POLL_INTERVAL, IDLE_SLEEP, MAX_CHUNKS_PER_SOURCE)
+    with get_db_session() as session:
+        reset_count = _reset_orphaned_sources(session)
+        if reset_count:
+            log.info("Reset %d orphaned 'processing' sources to pending", reset_count)
     while not _shutdown:
         processed = run_once()
         if not processed:
