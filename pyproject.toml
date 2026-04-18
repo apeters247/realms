@@ -12,3 +12,10 @@ ignore = ["E402"]
 # F811: pytest fixture false positives (fixture imported at module level, used as method param)
 # F401: test helpers import names that are re-exported or used indirectly via pytest
 "tests/**/*.py" = ["F811", "F401", "F841"]
+
+[tool.pytest.ini_options]
+markers = [
+    "integration: integration tests that hit a real PostgreSQL database",
+]
+testpaths = ["tests"]
+pythonpath = ["."]
