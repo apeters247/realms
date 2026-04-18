@@ -4,12 +4,15 @@ from __future__ import annotations
 import json
 import logging
 import os
+import random
 import re
+import time
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
 from openai import OpenAI
+from openai import APIError, RateLimitError
 
 log = logging.getLogger(__name__)
 
@@ -17,9 +20,19 @@ PROMPT_PATH = Path(__file__).resolve().parent / "prompts" / "extract_entities.md
 PROMPT_VERSION = "v1"
 DEFAULT_MODEL = os.getenv(
     "REALMS_EXTRACTION_MODEL",
-    "claude-haiku-4-5-20251001",
+    "claude-sonnet-4-6",
 )
+FALLBACK_MODELS = [
+    m.strip()
+    for m in os.getenv(
+        "REALMS_EXTRACTION_FALLBACK_MODELS",
+        "claude-sonnet-4-6,ollama/rombos-72b:latest",
+    ).split(",")
+    if m.strip()
+]
 DEFAULT_TEMPERATURE = float(os.getenv("REALMS_EXTRACTION_TEMPERATURE", "0.1"))
+MAX_RETRIES = int(os.getenv("REALMS_EXTRACTION_MAX_RETRIES", "3"))
+RETRY_BASE_DELAY = float(os.getenv("REALMS_EXTRACTION_RETRY_DELAY", "2.0"))
 
 
 @dataclass
@@ -92,13 +105,49 @@ def _coerce_entity(raw: dict[str, Any]) -> ExtractedEntity | None:
     )
 
 
+def _call_with_retry(
+    client: OpenAI,
+    model: str,
+    prompt: str,
+    temperature: float,
+) -> str:
+    """Call the LLM with retries on 429/503; returns message content or raises."""
+    last_exc: Exception | None = None
+    for attempt in range(MAX_RETRIES):
+        try:
+            response = client.chat.completions.create(
+                model=model,
+                temperature=temperature,
+                messages=[
+                    {"role": "system", "content": "You extract structured JSON entity records. Return only valid JSON."},
+                    {"role": "user", "content": prompt},
+                ],
+                timeout=120,
+            )
+            return response.choices[0].message.content or ""
+        except (RateLimitError, APIError) as exc:
+            last_exc = exc
+            status = getattr(exc, "status_code", None)
+            # Retry on 429 and 5xx; bail on 4xx client errors
+            if status and 400 <= status < 500 and status != 429:
+                raise
+            sleep_s = RETRY_BASE_DELAY * (2 ** attempt) + random.uniform(0, 1)
+            log.warning("[%s] attempt %d/%d failed (%s); retrying in %.1fs",
+                        model, attempt + 1, MAX_RETRIES, exc, sleep_s)
+            time.sleep(sleep_s)
+    raise last_exc if last_exc else RuntimeError("retry exhausted")
+
+
 def extract_entities(
     chunk_text: str,
     source_name: str,
     model: str = DEFAULT_MODEL,
     temperature: float = DEFAULT_TEMPERATURE,
 ) -> ExtractionResult:
-    """Call the LLM to extract entities from a single text chunk."""
+    """Call the LLM to extract entities from a single text chunk.
+
+    Tries ``model`` first; on persistent failure cycles through ``FALLBACK_MODELS``.
+    """
     prompt_template = PROMPT_PATH.read_text(encoding="utf-8")
     prompt = (
         prompt_template
@@ -107,16 +156,26 @@ def extract_entities(
     )
 
     client = _build_client()
-    response = client.chat.completions.create(
-        model=model,
-        temperature=temperature,
-        messages=[
-            {"role": "system", "content": "You extract structured JSON entity records. Return only valid JSON."},
-            {"role": "user", "content": prompt},
-        ],
-        timeout=120,
-    )
-    content = response.choices[0].message.content or ""
+
+    models_to_try: list[str] = [model]
+    for fb in FALLBACK_MODELS:
+        if fb not in models_to_try:
+            models_to_try.append(fb)
+
+    content = ""
+    chosen_model = model
+    last_exc: Exception | None = None
+    for m in models_to_try:
+        try:
+            content = _call_with_retry(client, m, prompt, temperature)
+            chosen_model = m
+            break
+        except Exception as exc:  # noqa: BLE001
+            last_exc = exc
+            log.warning("Extractor model %s failed after retries: %s", m, exc)
+            continue
+    if not content:
+        raise last_exc if last_exc else RuntimeError("all models failed")
 
     try:
         parsed = _parse_response(content)
@@ -125,7 +184,7 @@ def extract_entities(
         return ExtractionResult(
             entities=[],
             raw_response={"error": "unparseable", "content": content[:2000]},
-            model=model,
+            model=chosen_model,
             temperature=temperature,
             prompt_version=PROMPT_VERSION,
         )
@@ -142,7 +201,7 @@ def extract_entities(
     return ExtractionResult(
         entities=entities,
         raw_response=parsed,
-        model=model,
+        model=chosen_model,
         temperature=temperature,
         prompt_version=PROMPT_VERSION,
     )

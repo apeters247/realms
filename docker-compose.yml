@@ -78,7 +78,8 @@ services:
       REALMS_INGESTOR_POLL_INTERVAL: "20"
       REALMS_INGESTOR_IDLE_SLEEP: "60"
       REALMS_INGESTOR_MAX_CHUNKS: "15"
-      REALMS_EXTRACTION_MODEL: ${REALMS_EXTRACTION_MODEL:-claude-haiku-4-5-20251001}
+      REALMS_EXTRACTION_MODEL: ${REALMS_EXTRACTION_MODEL:-claude-sonnet-4-6}
+      REALMS_EXTRACTION_FALLBACK_MODELS: ${REALMS_EXTRACTION_FALLBACK_MODELS:-ollama/rombos-72b:latest,claude-haiku-4-5-20251001}
     volumes:
       - ./realms:/app/realms
       - ./scripts:/app/scripts
