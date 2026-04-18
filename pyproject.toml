@@ -1,0 +1,14 @@
+[tool.ruff]
+line-length = 88
+target-version = "py311"
+
+[tool.ruff.lint]
+# E402: module-level imports not at top — intentional sys.path.insert() pattern throughout
+# F811 in tests: pytest fixture false positives (fixtures imported at module level
+#                then used as method parameters with the same name)
+ignore = ["E402"]
+
+[tool.ruff.lint.per-file-ignores]
+# F811: pytest fixture false positives (fixture imported at module level, used as method param)
+# F401: test helpers import names that are re-exported or used indirectly via pytest
+"tests/**/*.py" = ["F811", "F401", "F841"]
