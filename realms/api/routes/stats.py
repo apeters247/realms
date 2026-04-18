@@ -1,19 +1,14 @@
 """Statistics API endpoints."""
 from fastapi import APIRouter
 
+from realms.services.stats_service import StatsService
+from realms.utils.database import get_db_session
+
 router = APIRouter()
 
 
 @router.get("/")
 async def get_stats():
-    """Stub: replaced in Task 15."""
-    return {"data": {
-        "total_entities": 0,
-        "by_type": {},
-        "by_realm": {},
-        "by_alignment": {},
-        "by_culture": {},
-        "avg_confidence": 0.0,
-        "sources_processed": 0,
-        "total_extractions": 0,
-    }}
+    with get_db_session() as session:
+        service = StatsService(session)
+        return {"data": service.get_stats()}

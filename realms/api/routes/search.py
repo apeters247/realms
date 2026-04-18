@@ -1,24 +1,35 @@
 """Search API endpoints."""
-from fastapi import APIRouter
+from typing import Any
+
+from fastapi import APIRouter, Query
 from pydantic import BaseModel
+
+from realms.services.entity_service import compute_pagination
+from realms.services.search_service import SearchService
+from realms.utils.database import get_db_session
 
 router = APIRouter()
 
 
 class AdvancedSearchRequest(BaseModel):
-    filters: dict = {}
+    filters: dict[str, Any] = {}
     sort: str = "-consensus_confidence"
     page: int = 1
     per_page: int = 50
 
 
 @router.get("/")
-async def global_search(q: str = ""):
-    """Stub: replaced in Task 14."""
-    return {"data": {"entities": [], "entity_classes": [], "cultures": [], "sources": []}}
+async def global_search(q: str = Query("")):
+    with get_db_session() as session:
+        service = SearchService(session)
+        return {"data": service.global_search(q)}
 
 
 @router.post("/advanced")
 async def advanced_search(req: AdvancedSearchRequest):
-    """Stub: replaced in Task 14."""
-    return {"data": [], "pagination": {"total": 0, "page": req.page, "per_page": req.per_page, "total_pages": 0}}
+    with get_db_session() as session:
+        service = SearchService(session)
+        entities, total = service.advanced_entity_search(
+            filters=req.filters, sort=req.sort, page=req.page, per_page=req.per_page,
+        )
+        return {"data": entities, "pagination": compute_pagination(total, req.page, req.per_page)}

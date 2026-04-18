@@ -5,6 +5,7 @@ Read-only service for spiritual entity knowledge base
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from realms.api.routes import entities, classes, hierarchy, relationships, cultures, regions, sources, search, stats
+from realms.api.routes.sources import extractions_router
 
 app = FastAPI(
     title="REALMS API",
@@ -37,6 +38,7 @@ app.include_router(relationships.router, prefix="/relationships", tags=["relatio
 app.include_router(cultures.router, prefix="/cultures", tags=["cultures"])
 app.include_router(regions.router, prefix="/regions", tags=["regions"])
 app.include_router(sources.router, prefix="/sources", tags=["sources"])
+app.include_router(extractions_router, prefix="/extractions", tags=["extractions"])
 app.include_router(search.router, prefix="/search", tags=["search"])
 app.include_router(stats.router, prefix="/stats", tags=["stats"])
 
