@@ -56,11 +56,12 @@ async def root():
 
 @app.get("/api/health")
 async def health_check():
-    """Health check endpoint"""
+    """Health check endpoint."""
+    from datetime import datetime, timezone
     return {
         "status": "healthy",
         "service": "realms-api",
-        "timestamp": "2026-04-18T10:00:00Z"  # Would be dynamic in real implementation
+        "timestamp": datetime.now(timezone.utc).isoformat(),
     }
 
 

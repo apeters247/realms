@@ -1,14 +1,12 @@
-# REALMS Docker Compose Extension
-# This extends the existing estimabio docker-compose.yml to add REALMS service
-# Usage: docker-compose -f /var/www/herbalist/docker-compose.yml -f /var/www/realms/docker-compose.yml up -d
+# REALMS Docker Compose — standalone, joins estimabio network for shared infra.
+# Usage (from /var/www/realms):
+#   docker compose up -d --build
 
 services:
-  # REALMS API Service
   realms-api:
     build:
       context: .
       dockerfile: Dockerfile
-      target: app
     image: realms:latest
     container_name: realms-api
     logging:
@@ -25,49 +23,21 @@ services:
           cpus: '0.5'
           memory: '512m'
     ports:
-      - "127.0.0.1:8001:8001"  # Different port from herbalist API (8000)
+      - "127.0.0.1:8001:8001"
     environment:
       - HOST=0.0.0.0
       - PORT=8001
       - LOG_LEVEL=${LOG_LEVEL:-info}
       - PYTHONPATH=/app
-      # Database configuration — shares with herbalist
-      - POSTGRES_HOST=postgres
-      - POSTGRES_PORT=5432
+      # Shared Postgres (running as part of estimabio stack)
+      - POSTGRES_HOST=${POSTGRES_HOST:-postgres}
+      - POSTGRES_PORT=${POSTGRES_PORT:-5432}
       - POSTGRES_USER=${POSTGRES_USER:-estimabio}
-      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-estimabio123}
-      - POSTGRES_DB=${POSTGRES_DB:-estimabio}
-      - DATABASE_TYPE=${DATABASE_TYPE:-postgres}
-      # LiteLLM Configuration (for extraction)
-      - LITELLM_API_BASE=${LITELLM_API_BASE:-http://litellm:4000}
-      - LITELLM_MASTER_KEY=${LITELLM_MASTER_KEY:-}
-      - LLM_PROVIDER=${LLM_PROVIDER:-litellm}
-      # Neo4j Knowledge Graph
-      - NEO4J_URI=${NEO4J_URI:-bolt://neo4j:7687}
-      - NEO4J_USER=${NEO4J_USER:-neo4j}
-      - NEO4J_PASSWORD=${NEO4J_PASSWORD:-estimabio123}
-    env_file:
-      - .env
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - POSTGRES_DB=${POSTGRES_DB:-realms}
     volumes:
-      # Persist data
-      - estimabio-data:/app/data
-      # Mount logs
-      - ./data/logs:/app/data/logs
-      # Mount source code for development
       - ./realms:/app/realms
-      - ./tools:/app/tools
-      - ./agents:/app/agents
-      - ./models:/app/models
-      - ./graph:/app/graph
       - ./scripts:/app/scripts
-      - ./api:/app/api
-      - ./main.py:/app/main.py
-      - ./pyproject.toml:/app/pyproject.toml:ro
-      - ./prompts:/app/prompts
-      - ./config:/app/config
-      # Mount web frontend
-      - ./web:/app/web
-      # Mount data directory for source documents
       - ./data:/app/data
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8001/api/health"]
@@ -76,16 +46,10 @@ services:
       retries: 3
       start_period: 40s
     restart: unless-stopped
-    command: ["./run_realms_api.sh"]
-    depends_on:
-      postgres:
-        condition: service_healthy
-      neo4j:
-        condition: service_healthy
-      litellm:
-        condition: service_healthy
+    networks:
+      - estimabio-network
 
-# Volume is already defined in herbalist/docker-compose.yml
-# volumes:
-#   estimabio-data:
-#     external: true
+networks:
+  estimabio-network:
+    external: true
+    name: herbalist_estimabio-network
