@@ -47,7 +47,10 @@ def _wikipedia_summary_api(lang: str, title: str) -> dict:
 
 
 def _wikipedia_plaintext_api(lang: str, title: str) -> str:
-    """Fetch full article plain text via the action API."""
+    """Fetch full article plain text via the action API.
+
+    Raises ``LookupError`` if the title is missing or a disambiguation stub.
+    """
     url = f"https://{lang}.wikipedia.org/w/api.php"
     params = {
         "action": "query",
@@ -62,10 +65,12 @@ def _wikipedia_plaintext_api(lang: str, title: str) -> str:
     data = resp.json()
     pages = data.get("query", {}).get("pages", {})
     for _pageid, page in pages.items():
+        if "missing" in page:
+            raise LookupError(f"Wikipedia title missing: {title}")
         extract = page.get("extract")
         if extract:
             return extract
-    return ""
+    raise LookupError(f"Wikipedia returned no extract for: {title}")
 
 
 def fetch_wikipedia(url: str, cache_dir: Path = DEFAULT_CACHE_DIR) -> FetchedDocument:

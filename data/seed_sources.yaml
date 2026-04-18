@@ -2,17 +2,17 @@
 # Run: python -m scripts.seed_sources
 sources:
   # Amazonian / Ayahuasca
-  - name: "Xapiri"
-    url: "https://en.wikipedia.org/wiki/Xapiri"
+  - name: "Yanomami"
+    url: "https://en.wikipedia.org/wiki/Yanomami"
     tradition: "Yanomami"
-  - name: "Chullachaqui"
-    url: "https://en.wikipedia.org/wiki/Chullachaqui"
+  - name: "Chullachaki"
+    url: "https://en.wikipedia.org/wiki/Chullachaki"
     tradition: "Amazonian mestizo"
-  - name: "Encantado (spirit)"
-    url: "https://en.wikipedia.org/wiki/Encantado_(spirit)"
+  - name: "Encantado (folklore)"
+    url: "https://en.wikipedia.org/wiki/Encantado"
     tradition: "Amazonian Brazilian"
-  - name: "Boto (Amazon river dolphin lore)"
-    url: "https://en.wikipedia.org/wiki/Boto_(mythology)"
+  - name: "Boto (Amazon river dolphin mythology)"
+    url: "https://en.wikipedia.org/wiki/Boto"
     tradition: "Amazonian"
 
   # West African / Yoruba / Vodun
@@ -46,8 +46,8 @@ sources:
     tradition: "Lakota"
 
   # Polynesian / Melanesian
-  - name: "Akua (spirit)"
-    url: "https://en.wikipedia.org/wiki/Akua_(Hawaiian_religion)"
+  - name: "Hawaiian religion"
+    url: "https://en.wikipedia.org/wiki/Hawaiian_religion"
     tradition: "Hawaiian"
   - name: "Atua"
     url: "https://en.wikipedia.org/wiki/Atua"
