@@ -17,7 +17,7 @@ from openai import APIError, RateLimitError
 log = logging.getLogger(__name__)
 
 PROMPT_PATH = Path(__file__).resolve().parent / "prompts" / "extract_entities.md"
-PROMPT_VERSION = "v1"
+PROMPT_VERSION = "v2"
 DEFAULT_MODEL = os.getenv(
     "REALMS_EXTRACTION_MODEL",
     "claude-sonnet-4-6",

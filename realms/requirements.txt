@@ -21,6 +21,12 @@ beautifulsoup4>=4.12.0
 lxml>=5.0.0
 openai>=1.10.0
 
+# Rate limiting
+slowapi>=0.1.9
+
+# Migrations
+alembic>=1.13.0
+
 # Testing
 pytest>=7.0.0
 pytest-asyncio>=0.21.0
