@@ -3,9 +3,10 @@ from __future__ import annotations
 
 import logging
 import re
+import unicodedata
 from typing import Iterable
 
-from sqlalchemy import select
+from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
 
 from realms.ingestion.extractor import ExtractedEntity
@@ -19,6 +20,45 @@ def _normalize_name(name: str) -> str:
     s = name.strip().lower()
     s = re.sub(r"\s+", " ", s)
     return s
+
+
+def _strip_diacritics(s: str) -> str:
+    nfkd = unicodedata.normalize("NFKD", s)
+    return "".join(c for c in nfkd if not unicodedata.combining(c))
+
+
+def _stem_key(name: str) -> str:
+    """Collapse trivial plural / diacritic differences for fuzzy matching.
+
+    Example: 'Vodúns' and 'vodún' both map to 'vodun'.
+    """
+    s = _strip_diacritics(name.strip().lower())
+    # Strip trailing plural-like suffix
+    for suffix in ("es", "s"):
+        if len(s) > 4 and s.endswith(suffix):
+            s = s[: -len(suffix)]
+            break
+    return re.sub(r"\s+", " ", s)
+
+
+def _find_existing(session: Session, name: str) -> Entity | None:
+    """Find an entity by exact name, case-insensitive, or fuzzy stem match."""
+    # 1. exact case-insensitive
+    hit = session.execute(
+        select(Entity).where(Entity.name.ilike(name))
+    ).scalar_one_or_none()
+    if hit is not None:
+        return hit
+
+    # 2. stem equality across all entities (bounded N in MVP — Postgres trigram
+    #    would be the production fix once count > ~10k)
+    stem = _stem_key(name)
+    candidates = session.execute(select(Entity)).scalars().all()
+    for c in candidates:
+        if _stem_key(c.name) == stem:
+            log.info("Fuzzy match: %r ~= existing %r (stem=%s)", name, c.name, stem)
+            return c
+    return None
 
 
 def _merge_list(existing: list | None, incoming: Iterable) -> list:
@@ -55,10 +95,7 @@ def upsert_entities(
     result: dict[str, int] = {}
     for ex in extracted:
         norm = _normalize_name(ex.name)
-        # Match by lowercase name — entity_type is secondary (often null in first pass)
-        candidate = session.execute(
-            select(Entity).where(Entity.name.ilike(ex.name))
-        ).scalar_one_or_none()
+        candidate = _find_existing(session, ex.name)
 
         extraction_id = extraction_ids_by_name.get(norm)
 

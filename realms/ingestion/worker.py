@@ -19,6 +19,7 @@ from realms.ingestion.chunker import chunk_text
 from realms.ingestion.extractor import PROMPT_VERSION, extract_entities
 from realms.ingestion.fetcher import fetch_wikipedia
 from realms.ingestion.normalizer import _normalize_name, upsert_entities
+from realms.ingestion.relationships import link_co_occurrences
 from realms.models import IngestedEntity, IngestionSource
 from realms.utils.database import get_db_session
 
@@ -76,6 +77,7 @@ def _process_source(session: Session, source: IngestionSource) -> tuple[int, int
     n_extractions = 0
     all_extractions_by_norm: dict[str, int] = {}
     all_entities_by_norm: dict[str, list] = {}
+    chunks_by_idx: dict[int, list[str]] = {}  # chunk_idx -> list of normalized entity names
 
     for i, chunk in enumerate(chunks):
         log.info("[source=%d] chunk %d/%d (%d chars, section=%s)",
@@ -86,6 +88,7 @@ def _process_source(session: Session, source: IngestionSource) -> tuple[int, int
             log.warning("[source=%d] extraction failed: %s", source.id, exc)
             continue
 
+        chunk_names: list[str] = []
         for ent in result.entities:
             ingested = IngestedEntity(
                 source_id=source.id,
@@ -109,6 +112,8 @@ def _process_source(session: Session, source: IngestionSource) -> tuple[int, int
             norm = _normalize_name(ent.name)
             all_extractions_by_norm[norm] = ingested.id
             all_entities_by_norm.setdefault(norm, []).append(ent)
+            chunk_names.append(norm)
+        chunks_by_idx[i] = chunk_names
 
     # Upsert normalized entities (use the highest-confidence extraction per name)
     merged_entities = []
@@ -122,6 +127,15 @@ def _process_source(session: Session, source: IngestionSource) -> tuple[int, int
         source_id=source.id,
         extraction_ids_by_name=all_extractions_by_norm,
     )
+
+    # Weak co-occurrence edges within each chunk
+    n_edges = 0
+    for chunk_names in chunks_by_idx.values():
+        ids_in_chunk = [upserted[n] for n in chunk_names if n in upserted]
+        n_edges += link_co_occurrences(session, ids_in_chunk, source_id=source.id)
+    if n_edges:
+        log.info("[source=%d] %d new co-occurrence edges", source.id, n_edges)
+
     session.commit()
     return n_extractions, len(upserted)
 
