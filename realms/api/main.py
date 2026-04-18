@@ -2,10 +2,17 @@
 REALMS API Main Application
 Read-only service for spiritual entity knowledge base
 """
+import os
+from pathlib import Path
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse, RedirectResponse
+from fastapi.staticfiles import StaticFiles
 from realms.api.routes import entities, classes, hierarchy, relationships, cultures, regions, sources, search, stats
 from realms.api.routes.sources import extractions_router
+
+WEB_DIR = Path(os.getenv("REALMS_WEB_DIR", "/app/web"))
 
 app = FastAPI(
     title="REALMS API",
@@ -43,14 +50,20 @@ app.include_router(search.router, prefix="/search", tags=["search"])
 app.include_router(stats.router, prefix="/stats", tags=["stats"])
 
 
+if WEB_DIR.exists():
+    app.mount("/app", StaticFiles(directory=str(WEB_DIR), html=True), name="web")
+
+
 @app.get("/")
 async def root():
+    if (WEB_DIR / "index.html").exists():
+        return RedirectResponse(url="/app/")
     return {
         "message": "Welcome to REALMS API",
         "description": "Research Entity Archive for Light & Metaphysical Spirit Hierarchies",
         "version": "1.0.0",
         "docs": "/docs",
-        "redoc": "/redoc"
+        "redoc": "/redoc",
     }
 
 

@@ -1,0 +1,78 @@
+# REALMS seed source list — Wikipedia articles covering diverse traditions.
+# Run: python -m scripts.seed_sources
+sources:
+  # Amazonian / Ayahuasca
+  - name: "Xapiri"
+    url: "https://en.wikipedia.org/wiki/Xapiri"
+    tradition: "Yanomami"
+  - name: "Chullachaqui"
+    url: "https://en.wikipedia.org/wiki/Chullachaqui"
+    tradition: "Amazonian mestizo"
+  - name: "Encantado (spirit)"
+    url: "https://en.wikipedia.org/wiki/Encantado_(spirit)"
+    tradition: "Amazonian Brazilian"
+  - name: "Boto (Amazon river dolphin lore)"
+    url: "https://en.wikipedia.org/wiki/Boto_(mythology)"
+    tradition: "Amazonian"
+
+  # West African / Yoruba / Vodun
+  - name: "Orisha"
+    url: "https://en.wikipedia.org/wiki/Orisha"
+    tradition: "Yoruba"
+  - name: "Yoruba religion"
+    url: "https://en.wikipedia.org/wiki/Yoruba_religion"
+    tradition: "Yoruba"
+  - name: "Vodun"
+    url: "https://en.wikipedia.org/wiki/West_African_Vodun"
+    tradition: "West African"
+  - name: "Loa"
+    url: "https://en.wikipedia.org/wiki/Loa"
+    tradition: "Haitian Vodou"
+
+  # Siberian / Uralic shamanism
+  - name: "Siberian shamanism"
+    url: "https://en.wikipedia.org/wiki/Shamanism_in_Siberia"
+    tradition: "Siberian"
+  - name: "Tengrism"
+    url: "https://en.wikipedia.org/wiki/Tengrism"
+    tradition: "Turkic-Mongol"
+
+  # Native American
+  - name: "Kachina"
+    url: "https://en.wikipedia.org/wiki/Kachina"
+    tradition: "Pueblo"
+  - name: "Wakan Tanka"
+    url: "https://en.wikipedia.org/wiki/Wakan_Tanka"
+    tradition: "Lakota"
+
+  # Polynesian / Melanesian
+  - name: "Akua (spirit)"
+    url: "https://en.wikipedia.org/wiki/Akua_(Hawaiian_religion)"
+    tradition: "Hawaiian"
+  - name: "Atua"
+    url: "https://en.wikipedia.org/wiki/Atua"
+    tradition: "Polynesian"
+
+  # Global entheogenic
+  - name: "Machine elf"
+    url: "https://en.wikipedia.org/wiki/Machine_elf"
+    tradition: "DMT experiential"
+  - name: "Ayahuasca"
+    url: "https://en.wikipedia.org/wiki/Ayahuasca"
+    tradition: "Amazonian"
+
+  # Candomblé / Santería
+  - name: "Candomblé"
+    url: "https://en.wikipedia.org/wiki/Candombl%C3%A9"
+    tradition: "Afro-Brazilian"
+  - name: "Santería"
+    url: "https://en.wikipedia.org/wiki/Santer%C3%ADa"
+    tradition: "Afro-Cuban"
+
+  # Additional Amazonian
+  - name: "Banisteriopsis caapi"
+    url: "https://en.wikipedia.org/wiki/Banisteriopsis_caapi"
+    tradition: "Amazonian ethnobotany"
+  - name: "Shipibo-Conibo people"
+    url: "https://en.wikipedia.org/wiki/Shipibo-Conibo_people"
+    tradition: "Shipibo-Konibo"

@@ -2,6 +2,19 @@
 # Usage (from /var/www/realms):
 #   docker compose up -d --build
 
+x-common-env: &common-env
+  PYTHONPATH: /app
+  POSTGRES_HOST: ${POSTGRES_HOST:-postgres}
+  POSTGRES_PORT: ${POSTGRES_PORT:-5432}
+  POSTGRES_USER: ${POSTGRES_USER:-estimabio}
+  POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+  POSTGRES_DB: ${POSTGRES_DB:-realms}
+  LITELLM_API_BASE: ${LITELLM_API_BASE:-http://litellm:4000}
+  LITELLM_MASTER_KEY: ${LITELLM_MASTER_KEY:-sk-dummy}
+  NEO4J_URI: ${NEO4J_URI:-bolt://neo4j:7687}
+  NEO4J_USER: ${NEO4J_USER:-neo4j}
+  NEO4J_PASSWORD: ${NEO4J_PASSWORD:-estimabio123}
+
 services:
   realms-api:
     build:
@@ -25,19 +38,15 @@ services:
     ports:
       - "127.0.0.1:8004:8001"
     environment:
-      - HOST=0.0.0.0
-      - PORT=8001
-      - LOG_LEVEL=${LOG_LEVEL:-info}
-      - PYTHONPATH=/app
-      # Shared Postgres (running as part of estimabio stack)
-      - POSTGRES_HOST=${POSTGRES_HOST:-postgres}
-      - POSTGRES_PORT=${POSTGRES_PORT:-5432}
-      - POSTGRES_USER=${POSTGRES_USER:-estimabio}
-      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
-      - POSTGRES_DB=${POSTGRES_DB:-realms}
+      <<: *common-env
+      HOST: 0.0.0.0
+      PORT: 8001
+      LOG_LEVEL: ${LOG_LEVEL:-info}
     volumes:
       - ./realms:/app/realms
       - ./scripts:/app/scripts
+      - ./web:/app/web
+      - realms-raw-cache:/app/data/raw
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8001/api/health"]
       interval: 30s
@@ -47,6 +56,67 @@ services:
     restart: unless-stopped
     networks:
       - estimabio-network
+
+  realms-ingestor:
+    image: realms:latest
+    container_name: realms-ingestor
+    depends_on:
+      realms-api:
+        condition: service_healthy
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
+    deploy:
+      resources:
+        limits:
+          cpus: '1.5'
+          memory: '1g'
+    environment:
+      <<: *common-env
+      REALMS_INGESTOR_POLL_INTERVAL: "20"
+      REALMS_INGESTOR_IDLE_SLEEP: "60"
+      REALMS_INGESTOR_MAX_CHUNKS: "15"
+      REALMS_EXTRACTION_MODEL: ${REALMS_EXTRACTION_MODEL:-claude-haiku-4-5-20251001}
+    volumes:
+      - ./realms:/app/realms
+      - ./scripts:/app/scripts
+      - realms-raw-cache:/app/data/raw
+    command: ["python", "-m", "scripts.run_ingestor"]
+    restart: unless-stopped
+    networks:
+      - estimabio-network
+
+  realms-neo4j-sync:
+    image: realms:latest
+    container_name: realms-neo4j-sync
+    depends_on:
+      realms-api:
+        condition: service_healthy
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: '512m'
+    environment:
+      <<: *common-env
+      REALMS_SYNC_INTERVAL: "30"
+    volumes:
+      - ./realms:/app/realms
+      - ./scripts:/app/scripts
+    command: ["python", "-m", "scripts.run_neo4j_sync"]
+    restart: unless-stopped
+    networks:
+      - estimabio-network
+
+volumes:
+  realms-raw-cache:
 
 networks:
   estimabio-network:

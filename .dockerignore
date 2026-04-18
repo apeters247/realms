@@ -12,3 +12,7 @@ venv
 .DS_Store
 tests/
 docs/
+data/raw/
+data/logs/
+data/reports/
+.env

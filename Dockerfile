@@ -15,11 +15,13 @@ RUN pip install --no-cache-dir -r realms/requirements.txt
 # Copy REALMS source
 COPY realms/ ./realms/
 COPY scripts/ ./scripts/
+COPY web/ ./web/
+COPY data/seed_sources.yaml ./data/seed_sources.yaml
 COPY pyproject.toml ./
 COPY run_realms_api.sh ./
 
 RUN chmod +x run_realms_api.sh && \
-    mkdir -p data/logs data/reports && \
+    mkdir -p data/logs data/reports data/raw && \
     useradd --create-home --shell /bin/bash app && \
     chown -R app:app /app
 
