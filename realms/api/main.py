@@ -14,7 +14,7 @@ from slowapi.errors import RateLimitExceeded
 from slowapi.middleware import SlowAPIMiddleware
 
 from realms.api.rate_limit import limiter
-from realms.api.routes import entities, classes, hierarchy, relationships, cultures, regions, sources, search, stats, metrics, graph, export, review, corroboration, timeline
+from realms.api.routes import entities, classes, hierarchy, relationships, cultures, regions, sources, search, stats, metrics, graph, export, review, corroboration, timeline, external_links
 from realms.api.routes.sources import extractions_router
 
 WEB_DIR = Path(os.getenv("REALMS_WEB_DIR", "/app/web"))
@@ -66,6 +66,7 @@ app.include_router(export.router, prefix="/export", tags=["export"])
 app.include_router(review.router, prefix="/review", tags=["review"])
 app.include_router(corroboration.router, prefix="/corroboration", tags=["corroboration"])
 app.include_router(timeline.router, prefix="/timeline", tags=["timeline"])
+app.include_router(external_links.router, prefix="/external-links", tags=["external-links"])
 
 
 if WEB_DIR.exists():

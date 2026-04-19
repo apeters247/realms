@@ -140,6 +140,23 @@ async function renderEntityDetail(id) {
     return `<span class="badge" style="background:${color};color:#fff;margin-left:8px;" title="Source types: ${escapeHtml(types)}">${tier}</span>`;
   })() : '';
 
+  const externalIdsBlock = (() => {
+    const ids = e.external_ids || {};
+    const keys = Object.keys(ids);
+    if (!keys.length) return '';
+    const URL_TEMPLATES = {
+      wikidata: (id) => `https://www.wikidata.org/wiki/${id}`,
+      viaf: (id) => `https://viaf.org/viaf/${id}`,
+      wordnet: (id) => `http://wordnet-rdf.princeton.edu/lemma/${id}`,
+      geonames: (id) => `https://www.geonames.org/${id}`,
+    };
+    const badges = keys.map((k) => {
+      const href = (URL_TEMPLATES[k] || ((id) => '#'))(ids[k]);
+      return `<a class="badge" href="${href}" target="_blank" rel="noopener">${escapeHtml(k)}: ${escapeHtml(ids[k])}</a>`;
+    }).join(' ');
+    return `<div class="section"><h3>External links</h3>${badges}</div>`;
+  })();
+
   const corroborationBlock = corroboration && corroboration.sources_by_type ? (() => {
     const groups = Object.entries(corroboration.sources_by_type).map(([t, list]) => {
       const rows = list.map((s) => {
@@ -171,6 +188,7 @@ async function renderEntityDetail(id) {
     ${rels ? `<div class="section"><h3>Relationships</h3>${rels}</div>` : ''}
     ${sources ? `<div class="section"><h3>Sources</h3>${sources}</div>` : ''}
     ${corroborationBlock}
+    ${externalIdsBlock}
     ${extractions ? `<div class="section"><h3>Source quotes</h3>${extractions}</div>` : ''}
   `;
   // Click-through on relationship badges to navigate
