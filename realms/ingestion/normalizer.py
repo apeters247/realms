@@ -114,6 +114,10 @@ def upsert_entities(
                 provenance_sources=[source_id],
                 extraction_instances=[extraction_id] if extraction_id is not None else [],
                 consensus_confidence=ex.confidence,
+                first_documented_year=ex.first_attested_year,
+                evidence_period_start=ex.evidence_period_start,
+                evidence_period_end=ex.evidence_period_end,
+                historical_notes=ex.historical_notes,
             )
             session.add(entity)
             session.flush()
@@ -133,6 +137,22 @@ def upsert_entities(
             candidate.provenance_sources = _merge_list(candidate.provenance_sources, [source_id])
             if extraction_id is not None:
                 candidate.extraction_instances = _merge_list(candidate.extraction_instances, [extraction_id])
+
+            # Temporal merge: earliest wins, widest wins
+            if ex.first_attested_year is not None:
+                if (candidate.first_documented_year is None
+                        or ex.first_attested_year < candidate.first_documented_year):
+                    candidate.first_documented_year = ex.first_attested_year
+            if ex.evidence_period_start is not None:
+                if (candidate.evidence_period_start is None
+                        or ex.evidence_period_start < candidate.evidence_period_start):
+                    candidate.evidence_period_start = ex.evidence_period_start
+            if ex.evidence_period_end is not None:
+                if (candidate.evidence_period_end is None
+                        or ex.evidence_period_end > candidate.evidence_period_end):
+                    candidate.evidence_period_end = ex.evidence_period_end
+            if ex.historical_notes and not candidate.historical_notes:
+                candidate.historical_notes = ex.historical_notes
 
             # Recompute consensus_confidence from all linked extractions
             if candidate.extraction_instances:

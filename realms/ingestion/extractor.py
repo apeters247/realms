@@ -21,7 +21,7 @@ import requests
 log = logging.getLogger(__name__)
 
 PROMPT_PATH = Path(__file__).resolve().parent / "prompts" / "extract_entities.md"
-PROMPT_VERSION = "v3"
+PROMPT_VERSION = "v4"
 
 OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
 
@@ -74,6 +74,11 @@ class ExtractedEntity:
     confidence: float
     quote_context: str
     roles: dict[str, list[str]]
+    # v4 temporal fields (all optional; None when the source doesn't state a year)
+    first_attested_year: int | None = None
+    evidence_period_start: int | None = None
+    evidence_period_end: int | None = None
+    historical_notes: str | None = None
 
 
 @dataclass
@@ -118,6 +123,18 @@ def _coerce_entity(raw: dict[str, Any]) -> ExtractedEntity | None:
             cleaned = [v for v in cleaned if v]
             if cleaned:
                 roles[field] = cleaned
+    def _to_int(v: Any) -> int | None:
+        if v is None or v == "":
+            return None
+        try:
+            iv = int(v)
+        except (TypeError, ValueError):
+            return None
+        # sanity clamp to historically-plausible CE range
+        if iv < -3000 or iv > 2100:
+            return None
+        return iv
+
     return ExtractedEntity(
         name=name[:200],
         entity_type=raw.get("entity_type"),
@@ -132,6 +149,10 @@ def _coerce_entity(raw: dict[str, Any]) -> ExtractedEntity | None:
         confidence=float(raw.get("confidence") or 0.5),
         quote_context=(raw.get("quote_context") or "")[:500],
         roles=roles,
+        first_attested_year=_to_int(raw.get("first_attested_year")),
+        evidence_period_start=_to_int(raw.get("evidence_period_start")),
+        evidence_period_end=_to_int(raw.get("evidence_period_end")),
+        historical_notes=(raw.get("historical_notes") or None),
     )
 
 

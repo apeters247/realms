@@ -159,6 +159,9 @@ async function renderEntityDetail(id) {
     <div class="row"><span class="k">Alignment</span><span class="v">${e.alignment || '—'}</span></div>
     <div class="row"><span class="k">Realm</span><span class="v">${e.realm || '—'}</span></div>
     <div class="row"><span class="k">Confidence</span><span class="v">${(e.consensus_confidence || 0).toFixed(2)}</span></div>
+    ${e.first_documented_year != null ? `<div class="row"><span class="k">First attested</span><span class="v">${e.first_documented_year} ${e.first_documented_year < 0 ? 'BCE' : 'CE'}</span></div>` : ''}
+    ${(e.evidence_period_start != null && e.evidence_period_end != null) ? `<div class="row"><span class="k">Attested period</span><span class="v">${e.evidence_period_start} – ${e.evidence_period_end}</span></div>` : ''}
+    ${e.historical_notes ? `<div class="row"><span class="k">Historical</span><span class="v">${escapeHtml(e.historical_notes)}</span></div>` : ''}
     ${e.description ? `<p>${escapeHtml(e.description)}</p>` : ''}
     ${altNames ? `<div class="section"><h3>Alternate names</h3>${altNames}</div>` : ''}
     ${powers ? `<div class="section"><h3>Powers</h3>${powers}</div>` : ''}

@@ -237,6 +237,12 @@ class EntityService:
             "plant_connections": plant_connections,
             "sources": sources,
             "extraction_details": extraction_details,
+            "first_documented_year": entity.first_documented_year,
+            "evidence_period_start": entity.evidence_period_start,
+            "evidence_period_end": entity.evidence_period_end,
+            "historical_notes": entity.historical_notes,
+            "external_ids": entity.external_ids or {},
+            "review_status": entity.review_status,
             "created_at": entity.created_at.isoformat() if entity.created_at else None,
             "updated_at": entity.updated_at.isoformat() if entity.updated_at else None,
         })
