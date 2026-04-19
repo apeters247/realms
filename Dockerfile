@@ -17,6 +17,8 @@ COPY realms/ ./realms/
 COPY scripts/ ./scripts/
 COPY web/ ./web/
 COPY data/seed_sources.yaml ./data/seed_sources.yaml
+COPY alembic.ini ./
+COPY migrations/ ./migrations/
 COPY pyproject.toml ./
 COPY run_realms_api.sh ./
 
