@@ -23,6 +23,7 @@ const loaded = new Set();
 function loadView(view) {
   if (view === 'entities') return renderEntities();
   if (view === 'hierarchy' && !loaded.has('hierarchy')) { renderHierarchy(); loaded.add('hierarchy'); return; }
+  if (view === 'graph' && !loaded.has('graph')) { initGraphView(); loaded.add('graph'); return; }
   if (view === 'map' && !loaded.has('map')) { renderMap(); loaded.add('map'); return; }
   if (view === 'search') return;
   if (view === 'stats') return renderStats();
@@ -306,6 +307,138 @@ async function renderSources() {
       <td>${s.processed_at ? new Date(s.processed_at).toLocaleString() : '—'}</td>
     </tr>
   `).join('');
+}
+
+// -------------- Relationship Graph (Cytoscape) --------------
+let cy = null;
+
+const TYPE_COLORS = {
+  deity: '#bc8cff',
+  ancestor: '#ff8c6e',
+  animal_ally: '#57c999',
+  plant_spirit: '#55e0b0',
+  nature_spirit: '#a6e3ff',
+  angelic: '#f0f0f0',
+  demonic: '#f85149',
+  human_specialist: '#d29922',
+  null: '#8b949e',
+};
+
+const REL_COLORS = {
+  parent_of: '#ff7eb6',
+  child_of: '#ff7eb6',
+  consort_of: '#ffd36e',
+  sibling_of: '#a4e6ff',
+  allied_with: '#57c999',
+  enemy_of: '#f85149',
+  teacher_of: '#bc8cff',
+  student_of: '#bc8cff',
+  serves: '#d29922',
+  ruled_by: '#d29922',
+  aspect_of: '#88d3ff',
+  manifests_as: '#ff9bf0',
+  syncretized_with: '#c8e89b',
+  created_by: '#e0c060',
+  co_occurs_with: '#3a4555',
+  associated_with: '#485664',
+};
+
+async function initGraphView() {
+  // populate culture filter from the current entity data
+  try {
+    const cres = await fetchJSON('/cultures/?per_page=100&sort=name');
+    const sel = document.getElementById('graph-culture');
+    for (const c of cres.data) {
+      const opt = document.createElement('option');
+      opt.value = c.name;
+      opt.textContent = c.name;
+      sel.appendChild(opt);
+    }
+  } catch (e) { console.warn('culture list failed', e); }
+  document.getElementById('graph-refresh').addEventListener('click', renderGraph);
+  renderGraph();
+}
+
+async function renderGraph() {
+  const culture = document.getElementById('graph-culture').value;
+  const relType = document.getElementById('graph-rel-type').value;
+  const maxNodes = document.getElementById('graph-max-nodes').value;
+
+  const info = document.getElementById('graph-info');
+  info.textContent = 'Loading…';
+
+  const params = new URLSearchParams();
+  if (culture) params.set('culture', culture);
+  if (relType) params.set('rel_type', relType);
+  params.set('max_nodes', maxNodes);
+
+  const res = await fetchJSON(`/graph/?${params}`);
+  const { nodes, edges, stats } = res.data;
+  info.textContent = `${stats.node_count} nodes · ${stats.edge_count} edges · ${stats.semantic_edges} semantic · ${stats.weak_edges} weak`;
+
+  if (cy) cy.destroy();
+  cy = cytoscape({
+    container: document.getElementById('cy'),
+    elements: { nodes, edges },
+    style: [
+      {
+        selector: 'node',
+        style: {
+          'background-color': (ele) => TYPE_COLORS[ele.data('entity_type')] || TYPE_COLORS.null,
+          'label': 'data(label)',
+          'color': '#e6edf3',
+          'font-size': '10px',
+          'text-valign': 'bottom',
+          'text-halign': 'center',
+          'text-margin-y': '4px',
+          'width': (ele) => 10 + (ele.data('confidence') || 0) * 20,
+          'height': (ele) => 10 + (ele.data('confidence') || 0) * 20,
+          'border-width': 1,
+          'border-color': '#30363d',
+        },
+      },
+      {
+        selector: 'edge',
+        style: {
+          'width': (ele) => ele.data('is_semantic') ? 2 : 0.6,
+          'line-color': (ele) => REL_COLORS[ele.data('rel_type')] || '#30363d',
+          'target-arrow-color': (ele) => REL_COLORS[ele.data('rel_type')] || '#30363d',
+          'target-arrow-shape': (ele) => ele.data('is_semantic') ? 'triangle' : 'none',
+          'curve-style': 'bezier',
+          'opacity': (ele) => ele.data('is_semantic') ? 0.9 : 0.35,
+          'label': (ele) => ele.data('is_semantic') ? ele.data('rel_type') : '',
+          'font-size': '8px',
+          'color': '#8b949e',
+          'text-background-color': '#0e1117',
+          'text-background-opacity': 0.8,
+          'text-background-padding': '2px',
+        },
+      },
+      {
+        selector: 'node:selected',
+        style: { 'border-width': 3, 'border-color': '#58a6ff' },
+      },
+    ],
+    layout: {
+      name: 'cose',
+      animate: false,
+      nodeRepulsion: 5000,
+      idealEdgeLength: 80,
+      edgeElasticity: 80,
+      gravity: 0.25,
+      numIter: 1200,
+    },
+    wheelSensitivity: 0.2,
+    minZoom: 0.1,
+    maxZoom: 3,
+  });
+
+  cy.on('tap', 'node', (e) => {
+    const id = e.target.data('id');
+    // switch to Entities view with this entity selected
+    document.querySelector('.nav button[data-view="entities"]').click();
+    setTimeout(() => renderEntityDetail(id), 50);
+  });
 }
 
 // -------------- Utilities --------------

@@ -17,6 +17,7 @@
     <nav class="nav">
       <button data-view="entities" class="active">Entities</button>
       <button data-view="hierarchy">Hierarchy</button>
+      <button data-view="graph">Graph</button>
       <button data-view="map">Map</button>
       <button data-view="search">Search</button>
       <button data-view="stats">Stats</button>
@@ -88,6 +89,38 @@
       <div id="hierarchy-tree"></div>
     </section>
 
+    <section id="view-graph" class="view">
+      <h2>Relationship Graph</h2>
+      <div class="filters" style="margin-bottom:10px;">
+        <select id="graph-culture">
+          <option value="">All cultures</option>
+        </select>
+        <select id="graph-rel-type">
+          <option value="">All relationship types</option>
+          <option value="semantic">Semantic (exclude co-occur)</option>
+          <option value="parent_of">parent_of</option>
+          <option value="consort_of">consort_of</option>
+          <option value="sibling_of">sibling_of</option>
+          <option value="serves">serves</option>
+          <option value="enemy_of">enemy_of</option>
+          <option value="allied_with">allied_with</option>
+          <option value="aspect_of">aspect_of</option>
+          <option value="manifests_as">manifests_as</option>
+          <option value="syncretized_with">syncretized_with</option>
+          <option value="created_by">created_by</option>
+        </select>
+        <select id="graph-max-nodes">
+          <option value="100">100 nodes</option>
+          <option value="250" selected>250 nodes</option>
+          <option value="500">500 nodes</option>
+          <option value="1000">1000 nodes</option>
+        </select>
+        <button id="graph-refresh">Refresh</button>
+      </div>
+      <div id="graph-info" class="muted"></div>
+      <div id="cy" style="width:100%; height:72vh; border:1px solid var(--border); border-radius:8px; background:var(--bg-panel);"></div>
+    </section>
+
     <section id="view-map" class="view">
       <h2>Geographic Regions</h2>
       <div id="map"></div>
@@ -127,6 +160,7 @@
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
           integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
           crossorigin=""></script>
+  <script src="https://unpkg.com/cytoscape@3.28.1/dist/cytoscape.min.js"></script>
   <script src="/app/app.js"></script>
 </body>
 </html>
