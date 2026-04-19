@@ -23,7 +23,11 @@ const loaded = new Set();
 function loadView(view) {
   if (view === 'entities') return renderEntities();
   if (view === 'hierarchy' && !loaded.has('hierarchy')) { renderHierarchy(); loaded.add('hierarchy'); return; }
-  if (view === 'graph' && !loaded.has('graph')) { initGraphView(); loaded.add('graph'); return; }
+  if (view === 'graph') {
+    if (!loaded.has('graph')) { initGraphView(); loaded.add('graph'); }
+    else if (pendingEgoId) { renderGraph(); }
+    return;
+  }
   if (view === 'map' && !loaded.has('map')) { renderMap(); loaded.add('map'); return; }
   if (view === 'search') return;
   if (view === 'stats') return renderStats();
@@ -123,7 +127,7 @@ async function renderEntityDetail(id) {
   `).join('');
 
   el.innerHTML = `
-    <h2>${escapeHtml(e.name)}</h2>
+    <h2>${escapeHtml(e.name)} <button id="view-ego-btn" style="font-size:12px;vertical-align:middle;">view subgraph →</button></h2>
     <div class="row"><span class="k">Type</span><span class="v">${e.entity_type || '—'}</span></div>
     <div class="row"><span class="k">Alignment</span><span class="v">${e.alignment || '—'}</span></div>
     <div class="row"><span class="k">Realm</span><span class="v">${e.realm || '—'}</span></div>
@@ -146,7 +150,17 @@ async function renderEntityDetail(id) {
       renderEntityDetail(targetId);
     });
   });
+  // View subgraph
+  const egoBtn = document.getElementById('view-ego-btn');
+  if (egoBtn) {
+    egoBtn.addEventListener('click', () => {
+      pendingEgoId = id;
+      document.querySelector('.nav button[data-view="graph"]').click();
+    });
+  }
 }
+
+let pendingEgoId = null;
 
 // -------------- Hierarchy (D3) --------------
 async function renderHierarchy() {
@@ -379,12 +393,20 @@ async function renderGraph() {
   const info = document.getElementById('graph-info');
   info.textContent = 'Loading…';
 
-  const params = new URLSearchParams();
-  if (culture) params.set('culture', culture);
-  if (relType) params.set('rel_type', relType);
-  params.set('max_nodes', maxNodes);
+  // If an entity ID was requested, fetch its ego graph instead
+  let url;
+  if (pendingEgoId) {
+    url = `/graph/ego/${pendingEgoId}?depth=2&max_nodes=${maxNodes}&semantic_only=${relType === 'semantic' || !relType}`;
+    pendingEgoId = null;
+  } else {
+    const params = new URLSearchParams();
+    if (culture) params.set('culture', culture);
+    if (relType) params.set('rel_type', relType);
+    params.set('max_nodes', maxNodes);
+    url = `/graph/?${params}`;
+  }
 
-  const res = await fetchJSON(`/graph/?${params}`);
+  const res = await fetchJSON(url);
   const { nodes, edges, stats } = res.data;
   info.textContent = `${stats.node_count} nodes · ${stats.edge_count} edges · ${stats.semantic_edges} semantic · ${stats.weak_edges} weak`;
 
