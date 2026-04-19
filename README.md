@@ -15,6 +15,10 @@ knowledge base of spiritual entities documented across global indigenous traditi
 | 2E — Rate limiting, metrics, Alembic baseline | ✅ done |
 | 2F — Pair-relationship classifier (Gemini Flash via OpenRouter) | ✅ done |
 | 2G — Extractor v3 role fields, stub entities, review queue, ego graph, fuzzy search, export | ✅ done |
+| 3  — PubMed + archive.org corroboration, tier badges | ✅ done |
+| 4  — Inline LLM-assisted review writes (approve/reject/edit/merge/suggest) with audit trail | ✅ done |
+| 5  — Temporal dimensions (first-attested, evidence period, timeline) | ✅ done |
+| 6  — Cross-database linking (Wikidata SPARQL, VIAF SRU) | ✅ done |
 
 ## Live Data (current snapshot)
 
@@ -180,12 +184,36 @@ docker exec realms-api alembic upgrade head
 Baseline `20260418_0001` (no-op). `20260419_0002` adds pg_trgm + GIN indexes for
 similarity search. `run_realms_api.sh` runs `alembic upgrade head` automatically.
 
-## Future phases
+## Phase 3–6 quickstart
 
-- **Phase 3 — PubMed / archive.org ingestion** for academic corroboration of the
-  Wikipedia layer. Triangulation against primary ethnography.
-- **Phase 4 — Inline LLM-assisted review UI** on low-confidence entities
-  (approve / reject / edit).
-- **Phase 5 — Temporal and historical dimensions** — when was an entity first
-  documented? How has the belief evolved?
-- **Phase 6 — Cross-database linking** (Wikidata Qxxxx, VIAF, WordNet).
+**Enable review writes** (Phase 4):
+```bash
+echo 'REALMS_REVIEW_TOKEN=my-secret-token' >> .env
+docker compose up -d realms-api
+```
+
+**Seed corroboration sources** (Phase 3):
+```bash
+# PubMed: 3 seed queries per entity (polite to NCBI, takes ~5 min for 266 entities)
+docker exec realms-api python -m scripts.seed_pubmed_sources --per-entity 3
+# archive.org: curated list in data/archive_seeds.yaml
+docker exec realms-api python -m scripts.seed_archive_sources
+```
+
+**Auto-link to external authorities** (Phase 6):
+```bash
+docker exec realms-api python -m scripts.link_external_ids --system wikidata --dry-run
+docker exec realms-api python -m scripts.link_external_ids --system wikidata
+docker exec realms-api python -m scripts.link_external_ids --system viaf
+```
+Auto-accepts only when top candidate confidence ≥ 0.85 and gap ≥ 2× over
+runner-up. Otherwise logs a `review_actions` row with `action='external_link_suggest'`
+for manual pick.
+
+**Timeline** (Phase 5): `/timeline/entities?start_year=-2000&end_year=500` and
+`/timeline/summary`. Only populated for entities whose extractions carried a
+year (extractor prompt v4).
+
+## Retired phases
+
+All original roadmap items (Phases 1 through 6) are now implemented.
