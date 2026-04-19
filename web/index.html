@@ -22,6 +22,7 @@
       <button data-view="search">Search</button>
       <button data-view="stats">Stats</button>
       <button data-view="sources">Sources</button>
+      <button data-view="review">Review</button>
     </nav>
   </header>
 
@@ -149,6 +150,29 @@
       <div id="sources-status"></div>
       <table id="sources-table">
         <thead><tr><th>ID</th><th>Name</th><th>Type</th><th>Status</th><th>Credibility</th><th>Processed</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </section>
+
+    <section id="view-review" class="view">
+      <h2>Review Queue</h2>
+      <p class="muted">Entities flagged for human review: low confidence, single-source, or isolated (no relationships).</p>
+      <div class="stats-grid" id="review-stats-cards"></div>
+      <div class="filters" style="margin:10px 0;">
+        <label><input type="checkbox" id="review-single-source"/> Single source only</label>
+        <label><input type="checkbox" id="review-isolated"/> Isolated only</label>
+        <select id="review-confidence-max">
+          <option value="0.60">confidence &lt; 0.60</option>
+          <option value="0.70" selected>confidence ≤ 0.70</option>
+          <option value="0.80">confidence ≤ 0.80</option>
+          <option value="0.90">confidence ≤ 0.90</option>
+        </select>
+        <button id="review-refresh">Refresh</button>
+      </div>
+      <table id="review-table">
+        <thead>
+          <tr><th>ID</th><th>Name</th><th>Type</th><th>Conf.</th><th>Sources</th><th>Flags</th><th>Culture</th></tr>
+        </thead>
         <tbody></tbody>
       </table>
     </section>

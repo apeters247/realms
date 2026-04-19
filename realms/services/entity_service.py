@@ -10,6 +10,28 @@ from sqlalchemy.orm import Session
 from realms.models import Entity, EntityRelationship, IngestedEntity, IngestionSource, PlantSpiritConnection
 
 
+# Map outgoing relationship_type → label to display when viewing the *target* entity
+INVERSE_REL_LABELS = {
+    "parent_of": "child_of",
+    "child_of": "parent_of",
+    "teacher_of": "student_of",
+    "student_of": "teacher_of",
+    "serves": "served_by",
+    "ruled_by": "rules",
+    "aspect_of": "has_aspect",
+    "manifests_as": "manifested_by",
+    "created_by": "creator_of",
+    # symmetric — keep label
+    "consort_of": "consort_of",
+    "sibling_of": "sibling_of",
+    "allied_with": "allied_with",
+    "enemy_of": "enemy_of",
+    "syncretized_with": "syncretized_with",
+    "co_occurs_with": "co_occurs_with",
+    "associated_with": "associated_with",
+}
+
+
 _SORT_COLUMNS = {
     "name": Entity.name,
     "consensus_confidence": Entity.consensus_confidence,
@@ -119,6 +141,9 @@ class EntityService:
         rels_out = self.session.execute(
             select(EntityRelationship).where(EntityRelationship.source_entity_id == entity_id)
         ).scalars().all()
+        rels_in = self.session.execute(
+            select(EntityRelationship).where(EntityRelationship.target_entity_id == entity_id)
+        ).scalars().all()
 
         relationships: dict[str, list[dict]] = {}
         for rel in rels_out:
@@ -131,6 +156,25 @@ class EntityService:
                 "confidence": rel.extraction_confidence or 0.0,
                 "sources": rel.provenance_sources or [],
                 "cultural_context": rel.cultural_context or [],
+                "direction": "out",
+            })
+        for rel in rels_in:
+            inverse_label = INVERSE_REL_LABELS.get(rel.relationship_type, rel.relationship_type)
+            # Skip symmetric duplicates (already added as outgoing)
+            if inverse_label == rel.relationship_type and rel.source_entity_id in (
+                r["entity_id"] for rtype in relationships.values() for r in rtype
+            ):
+                continue
+            source = self.session.get(Entity, rel.source_entity_id)
+            relationships.setdefault(inverse_label, []).append({
+                "entity_id": rel.source_entity_id,
+                "entity_name": source.name if source else None,
+                "relationship_type": inverse_label,
+                "description": rel.description,
+                "confidence": rel.extraction_confidence or 0.0,
+                "sources": rel.provenance_sources or [],
+                "cultural_context": rel.cultural_context or [],
+                "direction": "in",
             })
 
         pc_rows = self.session.execute(

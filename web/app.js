@@ -28,6 +28,7 @@ function loadView(view) {
   if (view === 'search') return;
   if (view === 'stats') return renderStats();
   if (view === 'sources') return renderSources();
+  if (view === 'review') { if (!loaded.has('review')) { initReviewView(); loaded.add('review'); } else { renderReview(); } return; }
 }
 
 // -------------- Entities view --------------
@@ -104,7 +105,10 @@ async function renderEntityDetail(id) {
   const rels = Object.entries(e.relationships || {}).map(([type, list]) => `
     <div class="row">
       <div class="k">${type.replace(/_/g, ' ')}</div>
-      ${list.map((r) => `<span class="badge">${escapeHtml(r.entity_name || '?')}</span>`).join('')}
+      ${list.map((r) => {
+        const arrow = r.direction === 'in' ? '←' : '→';
+        return `<span class="badge" data-entity-id="${r.entity_id}" style="cursor:pointer">${arrow} ${escapeHtml(r.entity_name || '?')}</span>`;
+      }).join('')}
     </div>
   `).join('');
 
@@ -134,6 +138,14 @@ async function renderEntityDetail(id) {
     ${sources ? `<div class="section"><h3>Sources</h3>${sources}</div>` : ''}
     ${extractions ? `<div class="section"><h3>Source quotes</h3>${extractions}</div>` : ''}
   `;
+  // Click-through on relationship badges to navigate
+  el.querySelectorAll('[data-entity-id]').forEach((node) => {
+    node.addEventListener('click', () => {
+      const targetId = +node.dataset.entityId;
+      if (!targetId) return;
+      renderEntityDetail(targetId);
+    });
+  });
 }
 
 // -------------- Hierarchy (D3) --------------
@@ -438,6 +450,54 @@ async function renderGraph() {
     // switch to Entities view with this entity selected
     document.querySelector('.nav button[data-view="entities"]').click();
     setTimeout(() => renderEntityDetail(id), 50);
+  });
+}
+
+// -------------- Review queue --------------
+function initReviewView() {
+  document.getElementById('review-refresh').addEventListener('click', renderReview);
+  ['review-single-source', 'review-isolated', 'review-confidence-max'].forEach((id) => {
+    document.getElementById(id).addEventListener('change', renderReview);
+  });
+  renderReview();
+}
+
+async function renderReview() {
+  const stats = (await fetchJSON('/review/stats')).data;
+  const cards = document.getElementById('review-stats-cards');
+  cards.innerHTML = `
+    <div class="stat-card"><div class="n">${stats.total_entities}</div><div class="label">Total entities</div></div>
+    <div class="stat-card"><div class="n">${stats.low_confidence}</div><div class="label">Low conf (&lt;0.7)</div></div>
+    <div class="stat-card"><div class="n">${stats.single_source_entities}</div><div class="label">Single-source</div></div>
+    <div class="stat-card"><div class="n">${stats.isolated_entities}</div><div class="label">Isolated (no edges)</div></div>
+    <div class="stat-card"><div class="n">${stats.connected_entities}</div><div class="label">Connected</div></div>
+  `;
+
+  const maxConf = document.getElementById('review-confidence-max').value;
+  const single = document.getElementById('review-single-source').checked;
+  const isolated = document.getElementById('review-isolated').checked;
+  const params = new URLSearchParams({ confidence_max: maxConf, limit: 100 });
+  if (single) params.set('single_source_only', 'true');
+  if (isolated) params.set('isolated_only', 'true');
+
+  const data = (await fetchJSON(`/review/entities?${params}`)).data;
+  const tbody = document.querySelector('#review-table tbody');
+  tbody.innerHTML = data.map((e) => `
+    <tr data-id="${e.id}">
+      <td>${e.id}</td>
+      <td>${escapeHtml(e.name)}</td>
+      <td>${e.entity_type || ''}</td>
+      <td>${(e.consensus_confidence || 0).toFixed(2)}</td>
+      <td>${e.n_sources}</td>
+      <td>${e.flags.map((f) => `<span class="status-pill ${f.replace('_', '')}">${f.replace('_', ' ')}</span>`).join(' ')}</td>
+      <td>${(e.cultural_associations || []).slice(0, 2).join(', ')}</td>
+    </tr>
+  `).join('');
+  tbody.querySelectorAll('tr').forEach((tr) => {
+    tr.addEventListener('click', () => {
+      document.querySelector('.nav button[data-view="entities"]').click();
+      setTimeout(() => renderEntityDetail(+tr.dataset.id), 50);
+    });
   });
 }
 
