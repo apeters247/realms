@@ -19,6 +19,7 @@ from realms.ingestion.chunker import chunk_text
 from realms.ingestion.extractor import PROMPT_VERSION, extract_entities
 from realms.ingestion.fetcher import fetch_wikipedia
 from realms.ingestion.normalizer import _normalize_name, upsert_entities
+from realms.ingestion.promote_dimensions import promote_all
 from realms.ingestion.relationships import link_co_occurrences
 from realms.models import IngestedEntity, IngestionSource
 from realms.utils.database import get_db_session
@@ -152,6 +153,12 @@ def _process_source(session: Session, source: IngestionSource) -> tuple[int, int
         n_edges += link_co_occurrences(session, ids_in_chunk, source_id=source.id)
     if n_edges:
         log.info("[source=%d] %d new co-occurrence edges", source.id, n_edges)
+
+    # Promote newly-mentioned cultures / regions to first-class rows
+    promo = promote_all(session)
+    if promo.cultures_added or promo.regions_added:
+        log.info("[source=%d] promoted cultures=+%d regions=+%d",
+                 source.id, promo.cultures_added, promo.regions_added)
 
     session.commit()
     return n_extractions, len(upserted)

@@ -13,6 +13,7 @@ from datetime import datetime, timezone
 
 from neo4j import GraphDatabase, Driver
 from sqlalchemy import select
+from sqlalchemy import text as text_sql
 from sqlalchemy.orm import Session
 
 from realms.models import Culture, Entity, EntityClass, EntityRelationship, GeographicRegion
@@ -197,6 +198,47 @@ def _sync_regions(driver: Driver, session: Session) -> int:
     return len(rows)
 
 
+def _delete_stale(driver: Driver, session: Session) -> dict[str, int]:
+    """Remove Neo4j nodes whose realms_id no longer exists in Postgres."""
+    # Collect current authoritative IDs from Postgres
+    live_entities = {
+        i for (i,) in session.execute(
+            text_sql("SELECT id FROM entities")
+        ).all()
+    }
+    live_classes = {
+        i for (i,) in session.execute(
+            text_sql("SELECT id FROM entity_classes")
+        ).all()
+    }
+
+    removed = {"entities": 0, "classes": 0}
+    with driver.session() as s:
+        # Entities
+        node_ids = [r["realms_id"] for r in s.run(
+            "MATCH (e:Entity) WHERE e.realms_id IS NOT NULL RETURN e.realms_id AS realms_id"
+        )]
+        stale = [i for i in node_ids if i not in live_entities]
+        if stale:
+            s.run(
+                "MATCH (e:Entity) WHERE e.realms_id IN $ids DETACH DELETE e",
+                ids=stale,
+            )
+            removed["entities"] = len(stale)
+        # Entity classes
+        class_ids = [r["realms_id"] for r in s.run(
+            "MATCH (c:EntityClass) WHERE c.realms_id IS NOT NULL RETURN c.realms_id AS realms_id"
+        )]
+        stale_c = [i for i in class_ids if i not in live_classes]
+        if stale_c:
+            s.run(
+                "MATCH (c:EntityClass) WHERE c.realms_id IN $ids DETACH DELETE c",
+                ids=stale_c,
+            )
+            removed["classes"] = len(stale_c)
+    return removed
+
+
 def _sync_relationships(driver: Driver, session: Session, since: datetime | None) -> int:
     stmt = select(EntityRelationship)
     if since is not None:
@@ -248,6 +290,9 @@ def run_once() -> dict:
                 "entities": _sync_entities(driver, session, since=None),
                 "relationships": _sync_relationships(driver, session, since=None),
             }
+            stale = _delete_stale(driver, session)
+            if stale["entities"] or stale["classes"]:
+                results["deleted"] = stale
         return results
     finally:
         driver.close()
