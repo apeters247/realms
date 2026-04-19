@@ -157,13 +157,35 @@ def _process_source(session: Session, source: IngestionSource) -> tuple[int, int
     if n_edges:
         log.info("[source=%d] %d new co-occurrence edges", source.id, n_edges)
 
-    # v3: explicit role claims -> typed edges
+    # v3: explicit role claims -> typed edges. Creates stub entities for
+    # unknown targets so the graph continues to grow; the stub is filled in
+    # later if/when its own source is ingested.
     def _resolve(n: str) -> int | None:
         norm = _normalize_name(n)
         if norm in upserted:
             return upserted[norm]
         existing = _find_existing(session, n)
-        return existing.id if existing else None
+        if existing is not None:
+            return existing.id
+        name = n.strip()
+        if len(name) < 2 or len(name) > 200:
+            return None
+        # Create a low-confidence stub
+        from realms.models import Entity as _Entity  # local to avoid top-level cycle
+        stub = _Entity(
+            name=name,
+            provenance_sources=[source.id],
+            consensus_confidence=0.4,
+            description=(
+                f"Stub entity — referenced by another entity from source #{source.id} "
+                f"but not yet directly extracted from its own source."
+            ),
+        )
+        session.add(stub)
+        session.flush()
+        log.info("[source=%d] stub created: %r (id=%d)", source.id, name, stub.id)
+        upserted[norm] = stub.id
+        return stub.id
 
     n_role_edges = 0
     for ex in merged_entities:
