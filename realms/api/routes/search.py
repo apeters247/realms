@@ -25,6 +25,18 @@ async def global_search(q: str = Query("")):
         return {"data": service.global_search(q)}
 
 
+@router.get("/similar")
+async def similar_entities(
+    q: str = Query(..., min_length=1),
+    threshold: float = Query(0.2, ge=0.05, le=0.95),
+    limit: int = Query(20, ge=1, le=100),
+):
+    """Trigram-similarity search: 'xapiri' matches 'Xapiripë', etc."""
+    with get_db_session() as session:
+        service = SearchService(session)
+        return {"data": service.similar_entities(q, limit=limit, threshold=threshold)}
+
+
 @router.post("/advanced")
 async def advanced_search(req: AdvancedSearchRequest):
     with get_db_session() as session:

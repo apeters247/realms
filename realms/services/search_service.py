@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from sqlalchemy import or_, select
+from sqlalchemy import func, or_, select, text
 from sqlalchemy.orm import Session
 
 from realms.models import Culture, Entity, EntityClass, IngestionSource
@@ -39,6 +39,40 @@ class SearchService:
             "cultures": [_culture_to_response(c) for c in cultures],
             "sources": [_source_to_response(s) for s in sources],
         }
+
+    def similar_entities(self, query: str, limit: int = 20, threshold: float = 0.2) -> list[dict]:
+        """Trigram-similarity search on entity names (requires pg_trgm + GIN index).
+
+        Returns entities ranked by similarity(name, query) above the threshold.
+        """
+        if not query:
+            return []
+        stmt = text(
+            """
+            SELECT id, name, entity_type, alignment, realm, consensus_confidence,
+                   cultural_associations, geographical_associations,
+                   similarity(name, :q) AS sim
+            FROM entities
+            WHERE similarity(name, :q) > :threshold
+            ORDER BY similarity(name, :q) DESC
+            LIMIT :limit
+            """
+        )
+        rows = self.session.execute(stmt, {"q": query, "threshold": threshold, "limit": limit}).mappings().all()
+        return [
+            {
+                "id": r["id"],
+                "name": r["name"],
+                "entity_type": r["entity_type"],
+                "alignment": r["alignment"],
+                "realm": r["realm"],
+                "consensus_confidence": r["consensus_confidence"] or 0.0,
+                "cultural_associations": r["cultural_associations"] or [],
+                "geographical_associations": r["geographical_associations"] or [],
+                "similarity": float(r["sim"]) if r["sim"] is not None else 0.0,
+            }
+            for r in rows
+        ]
 
     def advanced_entity_search(
         self,

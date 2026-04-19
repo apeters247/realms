@@ -19,6 +19,92 @@ SEMANTIC_TYPES = {
 }
 
 
+@router.get("/ego/{center_id}")
+async def ego_graph(
+    center_id: int,
+    depth: int = Query(2, ge=1, le=4),
+    max_nodes: int = Query(150, ge=10, le=500),
+    semantic_only: bool = Query(True),
+):
+    """Breadth-first neighborhood around one entity.
+
+    ``depth=1`` returns the immediate neighbors; ``depth=2`` adds their neighbors,
+    etc. Semantic edges are prioritized; co_occurrence edges are included only
+    if ``semantic_only=False``.
+    """
+    with get_db_session() as session:
+        edge_q = select(EntityRelationship)
+        if semantic_only:
+            edge_q = edge_q.where(EntityRelationship.relationship_type.in_(list(SEMANTIC_TYPES)))
+        all_edges = list(session.execute(edge_q).scalars().all())
+
+        # Build adjacency
+        adj: dict[int, list[EntityRelationship]] = {}
+        for e in all_edges:
+            adj.setdefault(e.source_entity_id, []).append(e)
+            adj.setdefault(e.target_entity_id, []).append(e)
+
+        # BFS from center
+        visited: set[int] = {center_id}
+        frontier = [center_id]
+        picked_edges: list[EntityRelationship] = []
+        for _ in range(depth):
+            next_frontier: list[int] = []
+            for node in frontier:
+                for edge in adj.get(node, []):
+                    other = edge.target_entity_id if edge.source_entity_id == node else edge.source_entity_id
+                    if len(visited) >= max_nodes:
+                        break
+                    if other not in visited:
+                        visited.add(other)
+                        next_frontier.append(other)
+                    if edge not in picked_edges:
+                        picked_edges.append(edge)
+                if len(visited) >= max_nodes:
+                    break
+            frontier = next_frontier
+            if len(visited) >= max_nodes:
+                break
+
+        entities = list(session.execute(
+            select(Entity).where(Entity.id.in_(visited))
+        ).scalars().all())
+
+        nodes = [{
+            "data": {
+                "id": str(e.id),
+                "label": e.name,
+                "entity_type": e.entity_type,
+                "alignment": e.alignment,
+                "realm": e.realm,
+                "confidence": e.consensus_confidence or 0.0,
+                "cultural_associations": e.cultural_associations or [],
+                "is_center": e.id == center_id,
+            },
+        } for e in entities]
+        edges = [{
+            "data": {
+                "id": f"e{e.id}",
+                "source": str(e.source_entity_id),
+                "target": str(e.target_entity_id),
+                "rel_type": e.relationship_type,
+                "confidence": e.extraction_confidence or 0.0,
+                "is_semantic": e.relationship_type in SEMANTIC_TYPES,
+            },
+        } for e in picked_edges]
+        return {
+            "data": {
+                "nodes": nodes, "edges": edges,
+                "stats": {
+                    "node_count": len(nodes),
+                    "edge_count": len(edges),
+                    "center_id": center_id,
+                    "depth": depth,
+                },
+            }
+        }
+
+
 @router.get("/")
 async def graph(
     culture: Optional[str] = Query(None, description="Filter entities by cultural_associations name"),
