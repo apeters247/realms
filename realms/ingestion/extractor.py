@@ -1,4 +1,9 @@
-"""LLM-based entity extraction via LiteLLM (OpenAI-compatible API)."""
+"""LLM-based entity extraction.
+
+Backend is OpenRouter direct (not LiteLLM) to avoid proxy-level timeouts that
+occurred when routing through the estimabio LiteLLM instance. This mirrors the
+pair classifier, keeping a single LLM path for the whole pipeline.
+"""
 from __future__ import annotations
 
 import json
@@ -11,49 +16,47 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from openai import OpenAI
-from openai import APIError, RateLimitError
+import requests
 
 log = logging.getLogger(__name__)
 
 PROMPT_PATH = Path(__file__).resolve().parent / "prompts" / "extract_entities.md"
 PROMPT_VERSION = "v3"
 
-# Relationship role fields that the extractor may emit; each mapped to a
-# realized relationship_type (and whether `A → B` or `B → A`).
-#  forward_type = the edge goes A -> B (A is subject, B is object)
-#  reverse_type = semantically equivalent edge in the opposite direction
+OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
+
 ROLE_FIELDS: dict[str, tuple[str, bool]] = {
-    "parents":          ("parent_of",        True),   # A's parent is B  =>  B parent_of A
-    "children":         ("parent_of",        False),  # A's child is B   =>  A parent_of B
-    "consorts":         ("consort_of",       False),  # symmetric
-    "siblings":         ("sibling_of",       False),  # symmetric
-    "teachers":         ("teacher_of",       True),   # A's teacher is B =>  B teacher_of A
-    "students":         ("teacher_of",       False),  # A's student is B =>  A teacher_of B
-    "servants":         ("serves",           True),   # A's servant is B =>  B serves A
-    "serves":           ("serves",           False),  # A serves B
-    "enemies":          ("enemy_of",         False),  # symmetric
-    "allies":           ("allied_with",      False),  # symmetric
-    "manifestations":   ("manifests_as",     False),  # A manifests as B
-    "aspect_of":        ("aspect_of",        False),  # A is aspect of B
-    "syncretized_with": ("syncretized_with", False),  # symmetric
-    "created_by":       ("created_by",       False),  # A created by B
+    "parents":          ("parent_of",        True),
+    "children":         ("parent_of",        False),
+    "consorts":         ("consort_of",       False),
+    "siblings":         ("sibling_of",       False),
+    "teachers":         ("teacher_of",       True),
+    "students":         ("teacher_of",       False),
+    "servants":         ("serves",           True),
+    "serves":           ("serves",           False),
+    "enemies":          ("enemy_of",         False),
+    "allies":           ("allied_with",      False),
+    "manifestations":   ("manifests_as",     False),
+    "aspect_of":        ("aspect_of",        False),
+    "syncretized_with": ("syncretized_with", False),
+    "created_by":       ("created_by",       False),
 }
 DEFAULT_MODEL = os.getenv(
     "REALMS_EXTRACTION_MODEL",
-    "claude-sonnet-4-6",
+    "anthropic/claude-sonnet-4.5",
 )
 FALLBACK_MODELS = [
     m.strip()
     for m in os.getenv(
         "REALMS_EXTRACTION_FALLBACK_MODELS",
-        "claude-sonnet-4-6,ollama/rombos-72b:latest",
+        "deepseek/deepseek-chat,google/gemini-2.0-flash-001",
     ).split(",")
     if m.strip()
 ]
 DEFAULT_TEMPERATURE = float(os.getenv("REALMS_EXTRACTION_TEMPERATURE", "0.1"))
 MAX_RETRIES = int(os.getenv("REALMS_EXTRACTION_MAX_RETRIES", "3"))
 RETRY_BASE_DELAY = float(os.getenv("REALMS_EXTRACTION_RETRY_DELAY", "2.0"))
+REQUEST_TIMEOUT = int(os.getenv("REALMS_EXTRACTION_TIMEOUT", "120"))
 
 
 @dataclass
@@ -70,7 +73,6 @@ class ExtractedEntity:
     alternate_names: dict[str, list[str]]
     confidence: float
     quote_context: str
-    # v3 role fields (names of other entities claimed by the source text)
     roles: dict[str, list[str]]
 
 
@@ -81,12 +83,6 @@ class ExtractionResult:
     model: str
     temperature: float
     prompt_version: str
-
-
-def _build_client() -> OpenAI:
-    base_url = os.getenv("LITELLM_API_BASE", "http://litellm:4000")
-    api_key = os.getenv("LITELLM_MASTER_KEY") or os.getenv("OPENAI_API_KEY") or "sk-dummy"
-    return OpenAI(base_url=base_url, api_key=api_key)
 
 
 def _strip_json_fences(text: str) -> str:
@@ -139,32 +135,45 @@ def _coerce_entity(raw: dict[str, Any]) -> ExtractedEntity | None:
     )
 
 
-def _call_with_retry(
-    client: OpenAI,
-    model: str,
-    prompt: str,
-    temperature: float,
-) -> str:
-    """Call the LLM with retries on 429/503; returns message content or raises."""
+def _call_openrouter(model: str, prompt: str, temperature: float) -> str:
+    api_key = os.getenv("OPENROUTER_API_KEY")
+    if not api_key:
+        raise RuntimeError("OPENROUTER_API_KEY is not set")
+
+    body = {
+        "model": model,
+        "temperature": temperature,
+        "messages": [
+            {
+                "role": "system",
+                "content": "You extract structured JSON entity records. Return only valid JSON.",
+            },
+            {"role": "user", "content": prompt},
+        ],
+    }
     last_exc: Exception | None = None
     for attempt in range(MAX_RETRIES):
         try:
-            response = client.chat.completions.create(
-                model=model,
-                temperature=temperature,
-                messages=[
-                    {"role": "system", "content": "You extract structured JSON entity records. Return only valid JSON."},
-                    {"role": "user", "content": prompt},
-                ],
-                timeout=120,
+            resp = requests.post(
+                OPENROUTER_URL,
+                headers={
+                    "Authorization": f"Bearer {api_key}",
+                    "Content-Type": "application/json",
+                    "HTTP-Referer": "https://realms.org",
+                    "X-Title": "REALMS",
+                },
+                json=body,
+                timeout=REQUEST_TIMEOUT,
             )
-            return response.choices[0].message.content or ""
-        except (RateLimitError, APIError) as exc:
+            if resp.status_code == 429 or resp.status_code >= 500:
+                raise RuntimeError(f"OpenRouter {resp.status_code}: {resp.text[:200]}")
+            if 400 <= resp.status_code < 500:
+                resp.raise_for_status()
+            data = resp.json()
+            content = data["choices"][0]["message"]["content"]
+            return content or ""
+        except Exception as exc:  # noqa: BLE001
             last_exc = exc
-            status = getattr(exc, "status_code", None)
-            # Retry on 429 and 5xx; bail on 4xx client errors
-            if status and 400 <= status < 500 and status != 429:
-                raise
             sleep_s = RETRY_BASE_DELAY * (2 ** attempt) + random.uniform(0, 1)
             log.warning("[%s] attempt %d/%d failed (%s); retrying in %.1fs",
                         model, attempt + 1, MAX_RETRIES, exc, sleep_s)
@@ -189,8 +198,6 @@ def extract_entities(
         .replace("{{CHUNK_TEXT}}", chunk_text)
     )
 
-    client = _build_client()
-
     models_to_try: list[str] = [model]
     for fb in FALLBACK_MODELS:
         if fb not in models_to_try:
@@ -201,7 +208,7 @@ def extract_entities(
     last_exc: Exception | None = None
     for m in models_to_try:
         try:
-            content = _call_with_retry(client, m, prompt, temperature)
+            content = _call_openrouter(m, prompt, temperature)
             chosen_model = m
             break
         except Exception as exc:  # noqa: BLE001
