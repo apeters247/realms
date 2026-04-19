@@ -79,7 +79,10 @@ def _claim_next_source(session: Session) -> IngestionSource | None:
 
 def _process_source(session: Session, source: IngestionSource) -> tuple[int, int]:
     """Fetch -> chunk -> extract -> normalize. Returns (n_extractions, n_entities)."""
-    assert source.url, "source.url is required"
+    if not source.url:
+        raise RuntimeError(
+            f"source {source.id} has no URL — book/manual seeds are not auto-ingestable"
+        )
     log.info("[source=%d] Fetching %s", source.id, source.url)
     fetched = fetch_wikipedia(source.url)
 
