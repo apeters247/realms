@@ -15,11 +15,13 @@ from datetime import datetime, timedelta, timezone
 from sqlalchemy import select, update
 from sqlalchemy.orm import Session
 
+from realms.ingestion.archive_fetcher import fetch_archive
 from realms.ingestion.chunker import chunk_text
 from realms.ingestion.extractor import PROMPT_VERSION, ROLE_FIELDS, extract_entities
-from realms.ingestion.fetcher import fetch_wikipedia
+from realms.ingestion.fetcher import FetchedDocument, fetch_wikipedia
 from realms.ingestion.normalizer import _find_existing, _normalize_name, upsert_entities
 from realms.ingestion.promote_dimensions import promote_all
+from realms.ingestion.pubmed_fetcher import fetch_pubmed
 from realms.ingestion.relationships import link_co_occurrences, upsert_role_edges
 from realms.models import IngestedEntity, IngestionSource
 from realms.utils.database import get_db_session
@@ -77,14 +79,25 @@ def _claim_next_source(session: Session) -> IngestionSource | None:
     return source
 
 
+def _dispatch_fetch(source: IngestionSource) -> FetchedDocument:
+    """Route the fetch call by source_type. Wikipedia is the legacy default."""
+    stype = (source.source_type or "wikipedia").lower()
+    if stype == "pubmed":
+        return fetch_pubmed(source.url)
+    if stype in ("archive_org", "archive.org", "archive"):
+        return fetch_archive(source.url)
+    # Treat unknown / legacy types as Wikipedia — preserves existing seeds.
+    return fetch_wikipedia(source.url)
+
+
 def _process_source(session: Session, source: IngestionSource) -> tuple[int, int]:
     """Fetch -> chunk -> extract -> normalize. Returns (n_extractions, n_entities)."""
     if not source.url:
         raise RuntimeError(
             f"source {source.id} has no URL — book/manual seeds are not auto-ingestable"
         )
-    log.info("[source=%d] Fetching %s", source.id, source.url)
-    fetched = fetch_wikipedia(source.url)
+    log.info("[source=%d type=%s] Fetching %s", source.id, source.source_type, source.url)
+    fetched = _dispatch_fetch(source)
 
     source.raw_content_hash = fetched.content_hash
     source.storage_path = fetched.storage_path

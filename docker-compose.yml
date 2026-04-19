@@ -81,12 +81,14 @@ services:
       REALMS_INGESTOR_POLL_INTERVAL: "20"
       REALMS_INGESTOR_IDLE_SLEEP: "60"
       REALMS_INGESTOR_MAX_CHUNKS: "15"
-      REALMS_EXTRACTION_MODEL: ${REALMS_EXTRACTION_MODEL:-claude-sonnet-4-6}
-      REALMS_EXTRACTION_FALLBACK_MODELS: ${REALMS_EXTRACTION_FALLBACK_MODELS:-ollama/rombos-72b:latest,claude-haiku-4-5-20251001}
+      REALMS_EXTRACTION_MODEL: ${REALMS_EXTRACTION_MODEL:-anthropic/claude-sonnet-4.5}
+      REALMS_EXTRACTION_FALLBACK_MODELS: ${REALMS_EXTRACTION_FALLBACK_MODELS:-deepseek/deepseek-chat,google/gemini-2.0-flash-001}
     volumes:
       - ./realms:/app/realms
       - ./scripts:/app/scripts
       - realms-raw-cache:/app/data/raw
+      - realms-pubmed-cache:/app/data/pubmed
+      - realms-archive-cache:/app/data/archive_org
     command: ["python", "-m", "scripts.run_ingestor"]
     healthcheck:
       test: ["CMD", "python", "-c", "import os, sys; sys.exit(0 if os.path.exists('/proc/1/status') else 1)"]
@@ -133,6 +135,8 @@ services:
 
 volumes:
   realms-raw-cache:
+  realms-pubmed-cache:
+  realms-archive-cache:
 
 networks:
   estimabio-network:

@@ -98,6 +98,13 @@ async function renderEntityDetail(id) {
   el.classList.remove('detail-empty');
   el.classList.add('detail');
 
+  // Phase 3: fetch corroboration tier (non-blocking; don't fail the drawer on error)
+  let corroboration = null;
+  try {
+    const c = await fetchJSON(`/corroboration/${id}`);
+    corroboration = c.data;
+  } catch (_err) { /* tolerate — phase 3 may not be populated yet */ }
+
   const altNames = Object.entries(e.alternate_names || {})
     .map(([lang, names]) => `<span class="badge"><strong>${lang}:</strong> ${names.join(', ')}</span>`)
     .join('');
@@ -126,8 +133,28 @@ async function renderEntityDetail(id) {
     <div class="quote">${escapeHtml(x.raw_quote || '(no quote)')}</div>
   `).join('');
 
+  const tierBadge = corroboration ? (() => {
+    const tier = corroboration.tier || 'tier_0';
+    const types = (corroboration.distinct_source_types || []).join(', ') || 'none';
+    const color = {tier_3:'#0a0', tier_2:'#aa0', tier_1:'#a60', tier_0:'#777'}[tier] || '#777';
+    return `<span class="badge" style="background:${color};color:#fff;margin-left:8px;" title="Source types: ${escapeHtml(types)}">${tier}</span>`;
+  })() : '';
+
+  const corroborationBlock = corroboration && corroboration.sources_by_type ? (() => {
+    const groups = Object.entries(corroboration.sources_by_type).map(([t, list]) => {
+      const rows = list.map((s) => {
+        const link = s.url ? `<a href="${escapeHtml(s.url)}" target="_blank" rel="noopener">${escapeHtml(s.source_name)}</a>` : escapeHtml(s.source_name);
+        const year = s.publication_year ? ` (${s.publication_year})` : '';
+        const peer = s.peer_reviewed ? ' <span class="badge">peer-reviewed</span>' : '';
+        return `<div class="row"><span class="badge">#${s.id}</span> ${link}${year}${peer}</div>`;
+      }).join('');
+      return `<div class="section"><h4 style="margin:4px 0;">${escapeHtml(t)} (${list.length})</h4>${rows}</div>`;
+    }).join('');
+    return `<div class="section"><h3>Corroboration</h3>${groups}</div>`;
+  })() : '';
+
   el.innerHTML = `
-    <h2>${escapeHtml(e.name)} <button id="view-ego-btn" style="font-size:12px;vertical-align:middle;">view subgraph →</button></h2>
+    <h2>${escapeHtml(e.name)} ${tierBadge} <button id="view-ego-btn" style="font-size:12px;vertical-align:middle;">view subgraph →</button></h2>
     <div class="row"><span class="k">Type</span><span class="v">${e.entity_type || '—'}</span></div>
     <div class="row"><span class="k">Alignment</span><span class="v">${e.alignment || '—'}</span></div>
     <div class="row"><span class="k">Realm</span><span class="v">${e.realm || '—'}</span></div>
@@ -140,6 +167,7 @@ async function renderEntityDetail(id) {
     ${regions ? `<div class="section"><h3>Regions</h3>${regions}</div>` : ''}
     ${rels ? `<div class="section"><h3>Relationships</h3>${rels}</div>` : ''}
     ${sources ? `<div class="section"><h3>Sources</h3>${sources}</div>` : ''}
+    ${corroborationBlock}
     ${extractions ? `<div class="section"><h3>Source quotes</h3>${extractions}</div>` : ''}
   `;
   // Click-through on relationship badges to navigate

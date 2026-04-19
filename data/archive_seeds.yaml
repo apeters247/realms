@@ -1,0 +1,38 @@
+# Internet Archive seed list — open ethnographic monographs.
+# Each entry must have a valid archive.org identifier whose metadata
+# lists a plain-text sidecar (*_djvu.txt preferred). The fetcher auto-discovers
+# the filename via the /metadata/ endpoint.
+#
+# Many modern scans (1929+) are under Controlled Digital Lending and will
+# return 401/403 on the _djvu.txt. Prefer pre-1929 public-domain scans.
+items:
+  - identifier: polynesianmythol00grey_0
+    title: "Polynesian Mythology and Ancient Traditional History of the New Zealand Race"
+    authors: ["George Grey"]
+    year: 1855
+    publisher: "John Murray"
+    language: en
+  - identifier: mythsofthecherok00moonrich
+    title: "Myths of the Cherokee"
+    authors: ["James Mooney"]
+    year: 1900
+    publisher: "Bureau of American Ethnology"
+    language: en
+  - identifier: africanfolktales01baskuoft
+    title: "African Folk Tales"
+    authors: ["R. H. Nassau"]
+    year: 1912
+    publisher: "Duffield"
+    language: en
+  - identifier: mythologyofallra06gard
+    title: "Mythology of All Races — Volume 6: Indian, Iranian"
+    authors: ["Louis H. Gray"]
+    year: 1917
+    publisher: "Marshall Jones"
+    language: en
+  - identifier: zuniindiansthe1900
+    title: "The Zuni Indians: Their Mythology, Esoteric Fraternities, and Ceremonies"
+    authors: ["Matilda Coxe Stevenson"]
+    year: 1904
+    publisher: "Bureau of American Ethnology"
+    language: en
