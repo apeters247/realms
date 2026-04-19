@@ -192,6 +192,19 @@ class Entity(Base):
         index=True,
     )
     conflict_notes: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    # Phase 5 — temporal dimensions
+    first_documented_year: Mapped[Optional[int]] = mapped_column(Integer, nullable=True, index=True)
+    evidence_period_start: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    evidence_period_end: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    historical_notes: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    # Phase 6 — cross-database linking
+    external_ids: Mapped[Any] = mapped_column(
+        JSONB, nullable=False, server_default="{}",
+    )
+    # Phase 4 — review status (unreviewed | approved | rejected)
+    review_status: Mapped[str] = mapped_column(
+        String(20), nullable=False, server_default="unreviewed", index=True,
+    )
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
@@ -290,6 +303,29 @@ class Culture(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
+
+
+class ReviewAction(Base):
+    """Audit trail for Phase 4 review operations.
+
+    Every approve/reject/edit/merge/link action writes a row here so any
+    manual override can be inspected or rolled back.
+    """
+    __tablename__ = "review_actions"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    entity_id: Mapped[int] = mapped_column(
+        ForeignKey("entities.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    reviewer: Mapped[str] = mapped_column(String(200), nullable=False)
+    action: Mapped[str] = mapped_column(String(50), nullable=False)
+    field: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
+    old_value: Mapped[Optional[Any]] = mapped_column(JSONB, nullable=True)
+    new_value: Mapped[Optional[Any]] = mapped_column(JSONB, nullable=True)
+    note: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
     )
 
 

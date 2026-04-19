@@ -541,14 +541,87 @@ async function renderReview() {
       <td>${e.n_sources}</td>
       <td>${e.flags.map((f) => `<span class="status-pill ${f.replace('_', '')}">${f.replace('_', ' ')}</span>`).join(' ')}</td>
       <td>${(e.cultural_associations || []).slice(0, 2).join(', ')}</td>
+      <td class="review-actions">
+        <button class="rev-approve" title="Approve (a)">✓</button>
+        <button class="rev-reject" title="Reject (r)">✗</button>
+        <button class="rev-suggest" title="LLM suggest (s)">💡</button>
+      </td>
     </tr>
   `).join('');
   tbody.querySelectorAll('tr').forEach((tr) => {
-    tr.addEventListener('click', () => {
+    const id = +tr.dataset.id;
+    tr.addEventListener('click', (ev) => {
+      if (ev.target.tagName === 'BUTTON') return;
       document.querySelector('.nav button[data-view="entities"]').click();
-      setTimeout(() => renderEntityDetail(+tr.dataset.id), 50);
+      setTimeout(() => renderEntityDetail(id), 50);
+    });
+    tr.querySelector('.rev-approve').addEventListener('click', (ev) => {
+      ev.stopPropagation();
+      reviewAction(id, 'approve');
+    });
+    tr.querySelector('.rev-reject').addEventListener('click', (ev) => {
+      ev.stopPropagation();
+      if (!confirm(`Reject entity #${id}?`)) return;
+      reviewAction(id, 'reject');
+    });
+    tr.querySelector('.rev-suggest').addEventListener('click', (ev) => {
+      ev.stopPropagation();
+      reviewSuggest(id);
     });
   });
+}
+
+// -------------- Phase 4 review writes --------------
+function reviewToken() {
+  let t = localStorage.getItem('realms.reviewToken');
+  if (!t) {
+    t = prompt('Enter REALMS review token (stored in localStorage for this origin):');
+    if (t) localStorage.setItem('realms.reviewToken', t);
+  }
+  return t;
+}
+
+async function reviewAction(entityId, action) {
+  const token = reviewToken();
+  if (!token) return;
+  try {
+    const resp = await fetch(API(`/review/entities/${entityId}/${action}`), {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json', Authorization: `Bearer ${token}`},
+      body: JSON.stringify({note: null}),
+    });
+    if (resp.status === 403 || resp.status === 401) {
+      localStorage.removeItem('realms.reviewToken');
+      alert('Review token rejected — cleared from storage. Reload and retry.');
+      return;
+    }
+    if (!resp.ok) throw new Error(`${resp.status} ${resp.statusText}`);
+    await renderReview();
+  } catch (err) {
+    alert(`Review action failed: ${err.message}`);
+  }
+}
+
+async function reviewSuggest(entityId) {
+  const token = reviewToken();
+  if (!token) return;
+  try {
+    const resp = await fetch(API(`/review/entities/${entityId}/suggest`), {
+      method: 'POST',
+      headers: {Authorization: `Bearer ${token}`},
+    });
+    if (!resp.ok) throw new Error(`${resp.status} ${resp.statusText}`);
+    const data = (await resp.json()).data;
+    const fields = Object.entries(data.suggested_fields || {})
+      .map(([k, v]) => `  ${k}: ${JSON.stringify(v)}`).join('\n') || '  (no fields suggested)';
+    const conflicts = (data.conflicts_detected || []).join(', ') || 'none';
+    alert(
+      `Suggestion for #${entityId} (confidence ${data.confidence?.toFixed?.(2)}):\n\n` +
+      `Fields:\n${fields}\n\nConflicts: ${conflicts}\n\nRationale: ${data.rationale}`
+    );
+  } catch (err) {
+    alert(`Suggest failed: ${err.message}`);
+  }
 }
 
 // -------------- Utilities --------------

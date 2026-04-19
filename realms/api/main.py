@@ -38,12 +38,14 @@ app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 app.add_middleware(SlowAPIMiddleware)
 
-# CORS middleware for public access
+# CORS middleware for public access. Writes are token-gated at the endpoint
+# level (see realms/api/dependencies.py); allowing POST/PATCH here just lets
+# the in-app UI talk to /review/* and /corroboration/* from the browser.
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],  # In production, specify specific domains
     allow_credentials=True,
-    allow_methods=["GET", "OPTIONS"],  # Read-only: only GET and OPTIONS
+    allow_methods=["GET", "POST", "PATCH", "OPTIONS"],
     allow_headers=["*"],
 )
 

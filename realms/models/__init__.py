@@ -10,6 +10,7 @@ from realms.models.orm import (
     PlantSpiritConnection,
     Culture,
     GeographicRegion,
+    ReviewAction,
 )
 
 __all__ = [
@@ -23,4 +24,5 @@ __all__ = [
     "PlantSpiritConnection",
     "Culture",
     "GeographicRegion",
+    "ReviewAction",
 ]

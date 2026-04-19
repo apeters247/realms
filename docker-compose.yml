@@ -17,6 +17,11 @@ x-common-env: &common-env
   OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
   REALMS_PAIR_MODEL: ${REALMS_PAIR_MODEL:-google/gemini-2.0-flash-001}
   REALMS_PAIR_FALLBACK: ${REALMS_PAIR_FALLBACK:-deepseek/deepseek-chat}
+  # Phase 4 — set REALMS_REVIEW_TOKEN in .env to enable review write endpoints.
+  REALMS_REVIEW_TOKEN: ${REALMS_REVIEW_TOKEN:-}
+  REALMS_REVIEW_REVIEWER: ${REALMS_REVIEW_REVIEWER:-anonymous}
+  REALMS_REVIEW_MODEL: ${REALMS_REVIEW_MODEL:-google/gemini-2.0-flash-001}
+  REALMS_REVIEW_FALLBACK: ${REALMS_REVIEW_FALLBACK:-deepseek/deepseek-chat}
 
 services:
   realms-api:
