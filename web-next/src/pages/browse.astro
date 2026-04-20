@@ -1,0 +1,247 @@
+---
+import Base from '../layouts/Base.astro';
+import HoverPreview from '../islands/HoverPreview.svelte';
+import Breadcrumb from '../components/Breadcrumb.astro';
+import { loadSnapshot } from '../lib/loader';
+import { url } from '../lib/url';
+
+const snap = await loadSnapshot();
+
+// Group by entity_type for a small-multiples index.
+const byType = new Map<string, typeof snap.entities>();
+for (const e of snap.entities) {
+  const k = e.entity_type || 'uncategorized';
+  if (!byType.has(k)) byType.set(k, []);
+  byType.get(k)!.push(e);
+}
+const types = [...byType.entries()].sort((a, b) => b[1].length - a[1].length);
+
+// Alphabetical grouping — skip-anchor nav
+const firstLetter = (s: string) => {
+  const n = s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toUpperCase();
+  return /^[A-Z]/.test(n) ? n[0] : '#';
+};
+const byLetter = new Map<string, typeof snap.entities>();
+for (const e of snap.entities) {
+  const l = firstLetter(e.name || '');
+  if (!byLetter.has(l)) byLetter.set(l, []);
+  byLetter.get(l)!.push(e);
+}
+const letters = [...byLetter.keys()].sort();
+for (const list of byLetter.values()) list.sort((a, b) => a.name.localeCompare(b.name));
+
+const totalTypes = types.length;
+---
+<Base title="Browse" description="Complete index of REALMS entities — grouped by type and by first letter." canonical="/browse/">
+  <HoverPreview client:idle />
+  <div class="page">
+    <Breadcrumb items={[{ label: 'Browse' }]} />
+    <h1>Browse the archive</h1>
+    <p class="subtitle">
+      {snap.entities.length.toLocaleString()} entities across {totalTypes} types and {letters.length} letters.
+    </p>
+
+    <nav class="facet-rail ui" aria-label="Browse facets">
+      <span class="f-head">By type:</span>
+      {types.map(([t, list]) => (
+        <a href={`#type-${t}`} class="facet">{t}<span class="n">{list.length}</span></a>
+      ))}
+    </nav>
+
+    <nav class="alpha-rail" aria-label="Alphabetical">
+      <span class="f-head ui">Letter:</span>
+      {letters.map(l => <a class="alpha" href={`#letter-${l}`}>{l}</a>)}
+    </nav>
+
+    <section class="block">
+      <h2 class="small-caps">Alphabetical</h2>
+      {letters.map(l => (
+        <div class="letter-block" id={`letter-${l}`}>
+          <div class="letter-head">
+            <span class="big-letter">{l}</span>
+            <span class="letter-n ui">{byLetter.get(l)!.length}</span>
+          </div>
+          <ul class="name-list">
+            {byLetter.get(l)!.map(e => (
+              <li>
+                <a href={url(`/entity/${snap.entitySlugById[e.id]}/`)} data-preview={e.id}>
+                  <span class="n-name">{e.name}</span>
+                  <span class="n-meta ui">
+                    {e.entity_type && <span>{e.entity_type}</span>}
+                    {(e.cultural_associations || [])[0] && <span> · {(e.cultural_associations || [])[0]}</span>}
+                  </span>
+                </a>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ))}
+    </section>
+
+    <section class="block">
+      <h2 class="small-caps">By type</h2>
+      {types.map(([t, list]) => (
+        <div class="type-block" id={`type-${t}`}>
+          <div class="type-head">
+            <h3>{t}</h3>
+            <span class="ui type-n">{list.length}</span>
+          </div>
+          <ul class="name-list columns">
+            {list.slice().sort((a, b) => a.name.localeCompare(b.name)).map(e => (
+              <li>
+                <a href={url(`/entity/${snap.entitySlugById[e.id]}/`)} data-preview={e.id}>
+                  <span class="n-name">{e.name}</span>
+                  <span class="n-meta ui">{(e.cultural_associations || [])[0] || ''}</span>
+                </a>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ))}
+    </section>
+  </div>
+</Base>
+
+<style>
+  h1 { font-size: var(--fs-3xl); font-weight: 450; margin-bottom: var(--sp-2); }
+  .subtitle { color: var(--ink-dim); margin-bottom: var(--sp-5); }
+
+  .facet-rail, .alpha-rail {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: var(--sp-2);
+    padding: var(--sp-2) 0;
+    border-top: 1px solid var(--rule);
+    border-bottom: 1px solid var(--rule);
+    font-size: var(--fs-sm);
+  }
+  .alpha-rail {
+    border-top: 0;
+    margin-bottom: var(--sp-6);
+  }
+  .f-head {
+    color: var(--ink-faint);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    font-size: var(--fs-xs);
+    margin-right: var(--sp-2);
+  }
+  .facet {
+    text-decoration: none;
+    color: var(--ink-dim);
+    padding: 2px 8px;
+    border-radius: var(--r-sm);
+  }
+  .facet:hover { background: var(--bg-alt); color: var(--ink); }
+  .facet .n {
+    color: var(--ink-faint);
+    font-size: var(--fs-xs);
+    margin-left: 4px;
+    font-variant-numeric: tabular-nums;
+  }
+  .alpha {
+    text-decoration: none;
+    padding: 1px 6px;
+    font-family: var(--font-serif);
+    color: var(--ink);
+    border-radius: var(--r-sm);
+    font-weight: 500;
+  }
+  .alpha:hover { background: var(--accent); color: var(--bg); }
+
+  .block { margin-top: var(--sp-7); }
+  .small-caps {
+    text-transform: lowercase;
+    font-variant-caps: small-caps;
+    letter-spacing: 0.04em;
+    color: var(--ink-dim);
+    font-size: var(--fs-xl);
+    border-bottom: 1px solid var(--rule);
+    padding-bottom: var(--sp-2);
+    margin-bottom: var(--sp-5);
+  }
+
+  .letter-block, .type-block { margin-bottom: var(--sp-6); }
+  .letter-head, .type-head {
+    display: flex;
+    align-items: baseline;
+    gap: var(--sp-3);
+    margin-bottom: var(--sp-2);
+    padding-bottom: var(--sp-2);
+    border-bottom: 1px solid var(--rule-soft);
+  }
+  .big-letter {
+    font-family: var(--font-serif);
+    font-size: var(--fs-2xl);
+    color: var(--ink);
+    font-weight: 500;
+    font-variation-settings: 'opsz' 72, 'SOFT' 40, 'WONK' 1;
+    line-height: 1;
+  }
+  .letter-n, .type-n {
+    color: var(--ink-faint);
+    font-size: var(--fs-xs);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+  .type-head h3 {
+    margin: 0;
+    font-size: var(--fs-lg);
+    text-transform: lowercase;
+    font-variant-caps: small-caps;
+    letter-spacing: 0.04em;
+    color: var(--ink-dim);
+  }
+
+  .name-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    column-count: 2;
+    column-gap: var(--sp-6);
+  }
+  .name-list.columns { column-count: 3; }
+  @media (min-width: 1100px) {
+    .name-list { column-count: 3; }
+    .name-list.columns { column-count: 4; }
+  }
+  @media (max-width: 600px) {
+    .name-list, .name-list.columns { column-count: 1; }
+  }
+  .name-list li {
+    break-inside: avoid;
+    padding: 3px 0;
+  }
+  .name-list a {
+    display: flex;
+    align-items: baseline;
+    gap: var(--sp-2);
+    text-decoration: none;
+    color: var(--ink);
+    padding: 2px 4px;
+    border-radius: var(--r-sm);
+  }
+  .name-list a:hover {
+    background: var(--bg-alt);
+  }
+  .n-name {
+    font-family: var(--font-serif);
+    font-size: var(--fs-base);
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .n-meta {
+    color: var(--ink-faint);
+    font-size: var(--fs-xs);
+    text-align: right;
+    flex: 0 0 auto;
+    max-width: 40%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+</style>

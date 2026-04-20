@@ -1,0 +1,41 @@
+---
+import Base from '../../layouts/Base.astro';
+import Breadcrumb from '../../components/Breadcrumb.astro';
+import { url } from '../../lib/url';
+const year = new Date().getFullYear();
+const bibtex = `@misc{realms${year},
+  title        = {REALMS — Research Entity Archive for Light & Metaphysical Spirit Hierarchies},
+  author       = {REALMS contributors},
+  year         = {${year}},
+  url          = {https://realms.org},
+  note         = {Knowledge base of spiritual entities documented across global traditions, CC-BY-4.0},
+}`;
+---
+<Base title="How to cite" description="Citation formats for REALMS.">
+  <article class="article">
+    <div class="prose">
+      <Breadcrumb items={[{ label: 'About', href: url('/about/') }, { label: 'How to cite' }]} />
+      <h1>How to cite REALMS</h1>
+      <p>
+        REALMS is released under CC-BY-4.0. Please cite the archive, the release date,
+        and the specific entity page if you quote a description.
+      </p>
+      <h2>BibTeX</h2>
+      <pre><code>{bibtex}</code></pre>
+      <h2>Entity-level citation</h2>
+      <p>
+        When citing a specific entity, include the entity name and the URL
+        (the URL is canonical; it will not change). Example:
+      </p>
+      <blockquote>
+        REALMS contributors. "Osun." <em>Research Entity Archive for Light &amp; Metaphysical Spirit Hierarchies</em>.
+        Accessed {new Date().toISOString().slice(0, 10)}. https://realms.org/entity/osun.
+      </blockquote>
+    </div>
+  </article>
+</Base>
+
+<style>
+  h1 { font-size: var(--fs-3xl); font-weight: 450; margin-bottom: var(--sp-4); }
+  pre { font-size: var(--fs-sm); }
+</style>

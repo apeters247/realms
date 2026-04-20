@@ -1,0 +1,17 @@
+---
+import Base from '../layouts/Base.astro';
+import Breadcrumb from '../components/Breadcrumb.astro';
+import SearchBox from '../islands/SearchBox.svelte';
+const q = Astro.url.searchParams.get('q') ?? '';
+---
+<Base title={q ? `Search: ${q}` : 'Search'} canonical="/search" noindex>
+  <div class="page">
+    <Breadcrumb items={[{ label: 'Search' }]} />
+    <h1>Search</h1>
+    <SearchBox client:load initialQuery={q} />
+  </div>
+</Base>
+
+<style>
+  h1 { font-size: var(--fs-2xl); font-weight: 450; margin-bottom: var(--sp-3); }
+</style>

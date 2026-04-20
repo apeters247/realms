@@ -1,0 +1,55 @@
+---
+import Base from '../layouts/Base.astro';
+import Breadcrumb from '../components/Breadcrumb.astro';
+import { url } from '../lib/url';
+---
+<Base title="About" description="What REALMS is, who built it, and how to cite it.">
+  <article class="article">
+    <div class="prose">
+      <Breadcrumb items={[{ label: 'About' }]} />
+      <h1>About REALMS</h1>
+
+      <p>
+        <strong>REALMS</strong> — Research Entity Archive for Light & Metaphysical
+        Spirit Hierarchies — is a provenance-tracked knowledge base of spiritual
+        entities documented across global indigenous and traditional religious
+        traditions. Every entry records <em>what</em> was said, <em>where</em> it
+        was said, and <em>who</em> said it.
+      </p>
+
+      <h2>What this is not</h2>
+      <p>
+        This is not a generative text site. No entity page is the product of an
+        unconstrained language model. Every claim on an entity page traces to
+        at least one recorded source, and the exact model, temperature, and
+        prompt version used for extraction are stored alongside the result.
+        Where we merge multiple extractions into a single description we say so.
+      </p>
+
+      <h2>Where the text comes from</h2>
+      <p>
+        The ingestion pipeline fetches open source-text layers (Wikipedia, the
+        Internet Archive's public-domain scans, PubMed abstracts), breaks them
+        into chunks, and asks an LLM to produce structured entity records from
+        each chunk. Records are then normalized, fuzzy-matched against existing
+        entities, and merged. Typed relationships come from explicit role fields
+        in the extraction prompt. Unclear cases are flagged for human review.
+      </p>
+
+      <h2>How to read an entity page</h2>
+      <ul>
+        <li><strong>Confidence ribbon</strong> — a tier (triangulated / corroborated / single tradition / stub) reflecting how many independent source-types agree.</li>
+        <li><strong>Sidenotes</strong> — alternate names, region, tradition, external identifiers.</li>
+        <li><strong>Relationships</strong> — typed edges only (parent_of, consort_of, etc). Weak co-occurrence edges live in the graph view.</li>
+        <li><strong>Sources</strong> — citations and verbatim passages extracted from source texts.</li>
+      </ul>
+
+      <h2>Links</h2>
+      <ul>
+        <li><a href={url('/about/methodology/')}>Methodology in detail</a></li>
+        <li><a href={url('/sources/')}>Source catalogue</a></li>
+        <li><a href="https://creativecommons.org/licenses/by/4.0/">License: CC-BY-4.0</a></li>
+      </ul>
+    </div>
+  </article>
+</Base>

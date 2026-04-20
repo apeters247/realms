@@ -1,0 +1,31 @@
+---
+import Base from '../../layouts/Base.astro';
+import Breadcrumb from '../../components/Breadcrumb.astro';
+import HoverPreview from '../../islands/HoverPreview.svelte';
+import ExternalLinking from '../../islands/researcher/ExternalLinking.svelte';
+import { url } from '../../lib/url';
+---
+<Base title="External IDs" description="Attach Wikidata / VIAF / WordNet / GeoNames identifiers to entities." noindex>
+  <HoverPreview client:idle />
+  <div class="page">
+    <Breadcrumb
+      items={[
+        { label: 'Researcher', href: url('/researcher/') },
+        { label: 'External IDs' },
+      ]}
+    />
+    <h1>External identifier linking</h1>
+    <p class="subtitle">
+      Attach canonical IDs from authority systems. Auto-discovery runs via
+      <code>link_external_ids.py</code>; use this table for manual picks when
+      the auto-linker couldn't decide.
+    </p>
+    <ExternalLinking client:only="svelte" />
+  </div>
+</Base>
+
+<style>
+  h1 { font-size: var(--fs-2xl); font-weight: 450; margin-bottom: var(--sp-2); }
+  .subtitle { color: var(--ink-dim); margin-bottom: var(--sp-5); max-width: var(--col-prose); }
+  code { font-family: var(--font-mono); font-size: var(--fs-sm); color: var(--ink); background: var(--bg-alt); padding: 1px 4px; border-radius: var(--r-sm); }
+</style>

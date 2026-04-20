@@ -1,0 +1,21 @@
+---
+import Base from '../layouts/Base.astro';
+import Breadcrumb from '../components/Breadcrumb.astro';
+import FullGraph from '../islands/FullGraph.svelte';
+---
+<Base title="Graph" description="Interactive graph of all typed relationships in REALMS.">
+  <div class="page">
+    <Breadcrumb items={[{ label: 'Graph' }]} />
+    <div class="head">
+      <h1>Graph</h1>
+      <p class="subtitle">Every typed relationship in the archive. Hover a node to preview.</p>
+    </div>
+    <FullGraph client:only="svelte" />
+  </div>
+</Base>
+
+<style>
+  h1 { font-size: var(--fs-2xl); font-weight: 450; margin-bottom: var(--sp-2); }
+  .subtitle { color: var(--ink-dim); max-width: var(--col-prose); }
+  .head { margin-bottom: var(--sp-4); }
+</style>

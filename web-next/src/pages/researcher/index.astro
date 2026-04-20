@@ -1,0 +1,75 @@
+---
+import Base from '../../layouts/Base.astro';
+import Breadcrumb from '../../components/Breadcrumb.astro';
+import ResearcherDashboard from '../../islands/researcher/ResearcherDashboard.svelte';
+import { url } from '../../lib/url';
+---
+<Base title="Researcher" description="Review queue, audit log, external-link suggestions." noindex>
+  <div class="page">
+    <Breadcrumb items={[{ label: 'Researcher' }]} />
+    <h1>Researcher dashboard</h1>
+    <p class="subtitle">Token-gated. Enable researcher mode from the toggle in the top bar.</p>
+
+    <nav class="hub" aria-label="Researcher sections">
+      <a href={url('/researcher/review/')} class="tile">
+        <h2>Review queue</h2>
+        <p>Low-confidence, single-source, and isolated entities. Approve, reject, or request LLM suggestions.</p>
+      </a>
+      <a href={url('/researcher/actions/')} class="tile">
+        <h2>Audit log</h2>
+        <p>Chronological record of every review action, external link, and merge.</p>
+      </a>
+      <a href={url('/researcher/link/')} class="tile">
+        <h2>External IDs</h2>
+        <p>Attach Wikidata, VIAF, WordNet, or GeoNames identifiers to entities.</p>
+      </a>
+    </nav>
+
+    <h2 class="section-title">Overview</h2>
+    <ResearcherDashboard client:only="svelte" />
+  </div>
+</Base>
+
+<style>
+  h1 { font-size: var(--fs-2xl); font-weight: 450; margin-bottom: var(--sp-2); }
+  .subtitle { color: var(--ink-dim); margin-bottom: var(--sp-5); }
+  .hub {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    gap: var(--sp-3);
+    margin-bottom: var(--sp-6);
+  }
+  .tile {
+    display: block;
+    padding: var(--sp-3) var(--sp-4);
+    border: 1px solid var(--rule);
+    border-radius: var(--r-md);
+    text-decoration: none;
+    color: inherit;
+    background: var(--bg-alt);
+    transition: border-color 180ms cubic-bezier(0.4, 0, 0.2, 1);
+  }
+  .tile:hover { border-color: var(--accent); }
+  .tile h2 {
+    font-size: var(--fs-lg);
+    font-weight: 450;
+    margin: 0 0 var(--sp-2) 0;
+    color: var(--ink);
+  }
+  .tile p {
+    margin: 0;
+    font-size: var(--fs-sm);
+    color: var(--ink-dim);
+    line-height: var(--lh-base);
+  }
+  .section-title {
+    font-size: var(--fs-sm);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--ink-faint);
+    font-weight: 500;
+    margin: var(--sp-5) 0 var(--sp-3) 0;
+    padding-bottom: var(--sp-2);
+    border-bottom: 1px solid var(--rule);
+  }
+</style>

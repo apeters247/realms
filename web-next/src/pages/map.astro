@@ -1,0 +1,18 @@
+---
+import Base from '../layouts/Base.astro';
+import Breadcrumb from '../components/Breadcrumb.astro';
+import MapView from '../islands/MapView.svelte';
+---
+<Base title="Map" description="Geographic distribution of REALMS entities.">
+  <div class="page">
+    <Breadcrumb items={[{ label: 'Map' }]} />
+    <h1>Map</h1>
+    <p class="subtitle">Entities clustered by their geographic_associations field. Click a marker for the region page.</p>
+    <MapView client:only="svelte" />
+  </div>
+</Base>
+
+<style>
+  h1 { font-size: var(--fs-2xl); font-weight: 450; margin-bottom: var(--sp-2); }
+  .subtitle { color: var(--ink-dim); max-width: var(--col-prose); margin-bottom: var(--sp-4); }
+</style>

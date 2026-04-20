@@ -1,0 +1,64 @@
+---
+// Small inline badge showing a confidence bucket plus source count.
+// High/mid/low match the Phase 3 tiering; tier_3 is the public-facing
+// "triangulated" quality mark.
+interface Props {
+  tier?: 'tier_0' | 'tier_1' | 'tier_2' | 'tier_3';
+  confidence?: number;
+  n_sources?: number;
+  compact?: boolean;
+}
+const { tier, confidence, n_sources, compact = false } = Astro.props;
+
+// Derive a display bucket from either the tier (public data) or the raw
+// consensus_confidence (internal field).
+let bucket: 'high' | 'mid' | 'low' = 'low';
+if (tier) {
+  if (tier === 'tier_3') bucket = 'high';
+  else if (tier === 'tier_2') bucket = 'mid';
+  else if (tier === 'tier_1') bucket = 'low';
+  else bucket = 'low';
+} else if (typeof confidence === 'number') {
+  if (confidence >= 0.85) bucket = 'high';
+  else if (confidence >= 0.65) bucket = 'mid';
+  else bucket = 'low';
+}
+
+const tierLabels: Record<string, string> = {
+  tier_3: 'triangulated',
+  tier_2: 'corroborated',
+  tier_1: 'single tradition',
+  tier_0: 'stub',
+};
+const label = tier ? tierLabels[tier] : bucket;
+const tip = n_sources != null ? `${n_sources} source${n_sources === 1 ? '' : 's'}` : undefined;
+---
+<span class:list={['ribbon', `ribbon-${bucket}`, { compact }]} title={tip}>
+  <span class="dot" aria-hidden="true"></span>
+  <span class="txt">{label}</span>
+  {n_sources != null && !compact && <span class="count">·&nbsp;{n_sources}</span>}
+</span>
+
+<style>
+  .ribbon {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-family: var(--font-sans);
+    font-size: var(--fs-xs);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--ink-dim);
+  }
+  .dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: currentColor;
+  }
+  .ribbon-high { color: var(--conf-high); }
+  .ribbon-mid  { color: var(--conf-mid); }
+  .ribbon-low  { color: var(--conf-low); }
+  .count { color: var(--ink-faint); }
+  .compact .count { display: none; }
+</style>

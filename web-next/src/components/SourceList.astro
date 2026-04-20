@@ -1,0 +1,125 @@
+---
+import type { CorroborationSource, EntityDetail } from '../lib/types';
+
+interface Props {
+  entity: EntityDetail;
+  sourcesByType?: Record<string, CorroborationSource[]>;
+}
+const { entity, sourcesByType } = Astro.props;
+
+function formatAuthors(a: unknown): string {
+  if (!a) return '';
+  if (typeof a === 'string') return a;
+  if (Array.isArray(a)) {
+    return a.map(x => {
+      if (typeof x === 'string') return x;
+      if (x && typeof x === 'object' && 'name' in x) return String((x as { name: string }).name);
+      return '';
+    }).filter(Boolean).join(', ');
+  }
+  return '';
+}
+
+const quoteByIngestionId = new Map<number, string>();
+for (const ex of entity.extraction_details || []) {
+  if (ex.raw_quote) quoteByIngestionId.set(ex.ingested_entity_id, ex.raw_quote);
+}
+---
+<section class="sources" id="sources">
+  <h2>Sources</h2>
+
+  {sourcesByType && Object.keys(sourcesByType).length > 0 && (
+    <div class="by-type">
+      {Object.entries(sourcesByType).map(([t, list]) => (
+        <div class="group">
+          <div class="label">{t} ({list.length})</div>
+          <ol class="refs">
+            {list.map((s, i) => (
+              <li id={`source-${s.id}`}>
+                <div class="ref-title">
+                  {s.url ? <a href={s.url} target="_blank" rel="noopener noreferrer">{s.source_name}</a> : s.source_name}
+                  {s.publication_year && <span class="year"> ({s.publication_year})</span>}
+                </div>
+                {formatAuthors(s.authors) && <div class="authors">{formatAuthors(s.authors)}</div>}
+                {s.doi && <div class="doi mono">doi:{s.doi}</div>}
+                {s.peer_reviewed && <div class="peer">peer reviewed</div>}
+              </li>
+            ))}
+          </ol>
+        </div>
+      ))}
+    </div>
+  )}
+
+  {(!sourcesByType || Object.keys(sourcesByType).length === 0) && entity.sources.length > 0 && (
+    <ol class="refs">
+      {entity.sources.map(s => (
+        <li id={`source-${s.id}`}>
+          <div class="ref-title">{s.source_name}</div>
+          <div class="meta">{s.source_type}{s.publication_year ? ` · ${s.publication_year}` : ''}</div>
+        </li>
+      ))}
+    </ol>
+  )}
+
+  {entity.extraction_details && entity.extraction_details.length > 0 && (
+    <div class="quotes">
+      <h3>Source passages</h3>
+      {entity.extraction_details.slice(0, 5).map(ex => ex.raw_quote && (
+        <blockquote class="quote">
+          <p>“{ex.raw_quote}”</p>
+          <cite>
+            <span class="mono">#{ex.ingested_entity_id}</span>
+            {ex.llm_model && <span> · extracted by {ex.llm_model}</span>}
+          </cite>
+        </blockquote>
+      ))}
+    </div>
+  )}
+</section>
+
+<style>
+  .sources {
+    margin-top: var(--sp-8);
+    padding-top: var(--sp-6);
+    border-top: 1px solid var(--rule);
+  }
+  .by-type {
+    display: flex;
+    flex-direction: column;
+    gap: var(--sp-6);
+  }
+  .group .label { margin-bottom: var(--sp-2); }
+  .refs {
+    list-style: decimal;
+    padding-left: var(--sp-5);
+    margin: 0;
+  }
+  .refs li {
+    margin-bottom: var(--sp-4);
+    line-height: 1.45;
+  }
+  .ref-title {
+    font-family: var(--font-serif);
+    font-size: var(--fs-base);
+  }
+  .year, .authors, .doi, .peer, .meta {
+    display: block;
+    color: var(--ink-dim);
+    font-family: var(--font-sans);
+    font-size: var(--fs-sm);
+  }
+  .peer {
+    color: var(--conf-high);
+    font-size: var(--fs-xs);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+  }
+  .quotes { margin-top: var(--sp-6); }
+  .quote {
+    margin: var(--sp-4) 0;
+  }
+  .quote cite {
+    font-size: var(--fs-xs);
+  }
+</style>

@@ -1,0 +1,22 @@
+---
+import Base from '../layouts/Base.astro';
+import Breadcrumb from '../components/Breadcrumb.astro';
+import TimelineView from '../islands/TimelineView.svelte';
+---
+<Base title="Timeline" description="First-attested year histogram and chronology of REALMS entities.">
+  <div class="page">
+    <Breadcrumb items={[{ label: 'Timeline' }]} />
+    <h1>Timeline</h1>
+    <p class="subtitle">
+      When was each entity first attested in a source text? This chart only shows
+      entities whose extractions included an explicit date — everything else is
+      chronologically unknown.
+    </p>
+    <TimelineView client:only="svelte" />
+  </div>
+</Base>
+
+<style>
+  h1 { font-size: var(--fs-2xl); font-weight: 450; margin-bottom: var(--sp-2); }
+  .subtitle { color: var(--ink-dim); max-width: var(--col-prose); margin-bottom: var(--sp-6); }
+</style>

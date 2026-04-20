@@ -1,0 +1,128 @@
+/* REALMS design tokens — Tufte-true cream/ink with oxblood accent.
+   Dark mode is not an inversion; it's a warm near-black with brighter accent. */
+
+:root {
+  /* ── Color ── */
+  --bg:         #faf9f6;          /* paper */
+  --bg-alt:     #f2efe5;          /* card */
+  --bg-sunken:  #ede9dc;          /* inset */
+  --ink:        #1a1815;          /* warm near-black */
+  --ink-dim:    #4a4642;
+  --ink-faint:  #8a8580;
+  --rule:       #d8d3c7;          /* hairline */
+  --rule-soft:  #e8e3d4;
+  --accent:     #7a1f13;          /* oxblood — reserved */
+  --accent-soft:#a94838;
+  --accent-2:   #1b4b6b;          /* academic blue */
+  --conf-high:  #3a5a3a;
+  --conf-mid:   #8a7330;
+  --conf-low:   #9a4030;
+  --synthesis:  #736850;          /* muted khaki for synthesis markers */
+
+  /* ── Type ── */
+  --font-serif: 'Fraunces Variable', 'ET Book', 'Iowan Old Style', 'Palatino', serif;
+  --font-sans:  'Inter Tight Variable', 'Inter', system-ui, sans-serif;
+  --font-mono:  'JetBrains Mono Variable', ui-monospace, 'SF Mono', Menlo, monospace;
+
+  --fs-xs:   0.75rem;
+  --fs-sm:   0.875rem;
+  --fs-base: 1rem;
+  --fs-md:   1.125rem;
+  --fs-lg:   1.25rem;
+  --fs-xl:   1.5rem;
+  --fs-2xl:  2rem;
+  --fs-3xl:  3rem;
+  --fs-display: 3.75rem;
+
+  --lh-tight: 1.2;
+  --lh-snug:  1.35;
+  --lh-body:  1.55;
+  --lh-loose: 1.7;
+
+  /* ── Space (8pt) ── */
+  --sp-1:  4px;
+  --sp-2:  8px;
+  --sp-3:  12px;
+  --sp-4:  16px;
+  --sp-5:  24px;
+  --sp-6:  32px;
+  --sp-7:  48px;
+  --sp-8:  64px;
+  --sp-9:  96px;
+  --sp-10: 128px;
+
+  /* ── Layout ── */
+  --col-prose:    64ch;
+  --col-sidenote: 200px;
+  --col-gutter:   24px;
+  --page-max:     1200px;
+
+  /* ── Motion ── */
+  --ease:         cubic-bezier(0.4, 0, 0.2, 1);
+  --dur-fast:     120ms;
+  --dur-med:      180ms;
+  --dur-slow:     240ms;
+
+  /* ── Radius (minimal — this is Tufte) ── */
+  --r-sm: 2px;
+  --r-md: 4px;
+
+  /* ── Shadow (almost never used) ── */
+  --shadow-1: 0 1px 2px rgba(0, 0, 0, 0.04);
+  --shadow-2: 0 4px 12px rgba(0, 0, 0, 0.08);
+
+  color-scheme: light;
+}
+
+:root[data-theme='dark'] {
+  --bg:         #13110e;
+  --bg-alt:     #1d1a15;
+  --bg-sunken:  #0f0d0a;
+  --ink:        #e8e3d8;
+  --ink-dim:    #a8a397;
+  --ink-faint:  #6a6559;
+  --rule:       #2f2b24;
+  --rule-soft:  #242019;
+  --accent:     #d04a2a;
+  --accent-soft:#e67556;
+  --accent-2:   #5a8ab0;
+  --conf-high:  #6b9a6b;
+  --conf-mid:   #c7a958;
+  --conf-low:   #d87160;
+  --synthesis:  #9a8f75;
+
+  color-scheme: dark;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme]) {
+    --bg:         #13110e;
+    --bg-alt:     #1d1a15;
+    --bg-sunken:  #0f0d0a;
+    --ink:        #e8e3d8;
+    --ink-dim:    #a8a397;
+    --ink-faint:  #6a6559;
+    --rule:       #2f2b24;
+    --rule-soft:  #242019;
+    --accent:     #d04a2a;
+    --accent-soft:#e67556;
+    --accent-2:   #5a8ab0;
+    --conf-high:  #6b9a6b;
+    --conf-mid:   #c7a958;
+    --conf-low:   #d87160;
+    --synthesis:  #9a8f75;
+
+    color-scheme: dark;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+}

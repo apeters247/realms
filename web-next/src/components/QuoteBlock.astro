@@ -1,0 +1,14 @@
+---
+// Used for verbatim quote_context pulled from IngestedEntity.
+interface Props { quote: string; source?: string; year?: number | null; url?: string | null; }
+const { quote, source, year, url } = Astro.props;
+---
+<blockquote class="quote">
+  <p>{quote}</p>
+  {source && (
+    <cite>
+      — {url ? <a href={url} target="_blank" rel="noopener">{source}</a> : source}
+      {year ? <span> ({year})</span> : null}
+    </cite>
+  )}
+</blockquote>

@@ -1,0 +1,75 @@
+---
+/**
+ * Horizontal bar showing corroboration-tier coverage across the archive.
+ * Tufte-small: no axes, no legend — data-rich; hover tooltip tells the story.
+ */
+interface Props {
+  tiers?: { tier_0?: number; tier_1?: number; tier_2?: number; tier_3?: number } | null;
+}
+const { tiers } = Astro.props;
+const c0 = tiers?.tier_0 ?? 0;
+const c1 = tiers?.tier_1 ?? 0;
+const c2 = tiers?.tier_2 ?? 0;
+const c3 = tiers?.tier_3 ?? 0;
+const total = c0 + c1 + c2 + c3;
+const p = (n: number) => (total > 0 ? (n / total) * 100 : 0);
+---
+{total > 0 && (
+  <div class="coverage">
+    <div class="bar" role="img" aria-label={`Coverage: ${c3} triangulated, ${c2} corroborated, ${c1} single-source, ${c0} stubs`}>
+      <span class="seg high"  style={`width:${p(c3)}%`} title={`tier_3 · ${c3} triangulated (≥3 source types)`}></span>
+      <span class="seg mid"   style={`width:${p(c2)}%`} title={`tier_2 · ${c2} corroborated (2 source types)`}></span>
+      <span class="seg low"   style={`width:${p(c1)}%`} title={`tier_1 · ${c1} single tradition`}></span>
+      <span class="seg stub"  style={`width:${p(c0)}%`} title={`tier_0 · ${c0} stubs (referenced only)`}></span>
+    </div>
+    <div class="legend ui">
+      <span><span class="swatch high"></span>triangulated {c3}</span>
+      <span><span class="swatch mid"></span>corroborated {c2}</span>
+      <span><span class="swatch low"></span>single tradition {c1}</span>
+      <span><span class="swatch stub"></span>stubs {c0}</span>
+    </div>
+  </div>
+)}
+
+<style>
+  .coverage {
+    margin: var(--sp-3) 0 var(--sp-2);
+  }
+  .bar {
+    display: flex;
+    height: 10px;
+    background: var(--bg-alt);
+    border: 1px solid var(--rule);
+    border-radius: var(--r-sm);
+    overflow: hidden;
+  }
+  .seg {
+    display: block;
+    height: 100%;
+    transition: width var(--dur-slow) var(--ease);
+  }
+  .seg.high { background: var(--conf-high); }
+  .seg.mid  { background: var(--conf-mid); }
+  .seg.low  { background: var(--conf-low); }
+  .seg.stub { background: var(--ink-faint); }
+  .legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--sp-4);
+    font-size: var(--fs-xs);
+    color: var(--ink-dim);
+    margin-top: var(--sp-2);
+    letter-spacing: 0.04em;
+  }
+  .legend span { display: flex; align-items: center; gap: 6px; }
+  .swatch {
+    display: inline-block;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+  }
+  .swatch.high { background: var(--conf-high); }
+  .swatch.mid  { background: var(--conf-mid); }
+  .swatch.low  { background: var(--conf-low); }
+  .swatch.stub { background: var(--ink-faint); }
+</style>

@@ -1,0 +1,98 @@
+---
+import Base from '../layouts/Base.astro';
+import Breadcrumb from '../components/Breadcrumb.astro';
+import { api } from '../lib/api';
+import { url } from '../lib/url';
+
+let sources: any[] = [];
+try {
+  const r = await api<{ data: any[] }>('/sources/?per_page=100');
+  sources = r.data || [];
+} catch { /* ignore */ }
+
+const byType = new Map<string, typeof sources>();
+for (const s of sources) {
+  const k = s.source_type || 'other';
+  if (!byType.has(k)) byType.set(k, []);
+  byType.get(k)!.push(s);
+}
+const groups = [...byType.entries()].sort((a, b) => b[1].length - a[1].length);
+
+const statusColor: Record<string, string> = {
+  completed: 'var(--conf-high)',
+  processing: 'var(--accent-2)',
+  pending: 'var(--ink-faint)',
+  failed: 'var(--conf-low)',
+};
+---
+<Base title="Sources" description="Catalogue of every source text REALMS has ingested.">
+  <div class="page">
+    <Breadcrumb items={[{ label: 'Sources' }]} />
+    <h1>Sources</h1>
+    <p class="subtitle">{sources.length} source texts, grouped by type.</p>
+
+    {groups.map(([type, list]) => (
+      <section class="group">
+        <h2>{type} <span class="n ui">{list.length}</span></h2>
+        <ol class="src-list">
+          {list.map(s => (
+            <li>
+              <div class="title">
+                <a href={url(`/source/${s.id}/`)}>{s.source_name}</a>
+                {s.publication_year && <span class="year"> ({s.publication_year})</span>}
+                {s.url && <a class="ext" href={s.url} target="_blank" rel="noopener" aria-label="external link">↗</a>}
+              </div>
+              <div class="meta ui">
+                <span class="status" style={`color:${statusColor[s.ingestion_status] || 'var(--ink-faint)'}`}>{s.ingestion_status}</span>
+                {s.peer_reviewed && <span>peer reviewed</span>}
+                {s.doi && <span class="mono">doi:{s.doi}</span>}
+              </div>
+            </li>
+          ))}
+        </ol>
+      </section>
+    ))}
+  </div>
+</Base>
+
+<style>
+  h1 { font-size: var(--fs-2xl); font-weight: 450; margin-bottom: var(--sp-2); }
+  .subtitle { color: var(--ink-dim); margin-bottom: var(--sp-6); }
+  .group { margin-top: var(--sp-7); }
+  .group h2 {
+    font-size: var(--fs-lg);
+    text-transform: lowercase;
+    font-variant-caps: small-caps;
+    letter-spacing: 0.04em;
+    border-bottom: 1px solid var(--rule);
+    padding-bottom: var(--sp-2);
+  }
+  .group h2 .n {
+    font-size: var(--fs-xs);
+    color: var(--ink-faint);
+    margin-left: var(--sp-2);
+    font-variant-caps: normal;
+  }
+  .src-list {
+    list-style: decimal;
+    padding-left: var(--sp-6);
+    margin: var(--sp-4) 0;
+  }
+  .src-list li { margin-bottom: var(--sp-4); }
+  .title { font-family: var(--font-serif); font-size: var(--fs-base); }
+  .title a { color: var(--ink); text-decoration: none; }
+  .title a:hover { color: var(--accent); text-decoration: underline; }
+  .year { color: var(--ink-faint); }
+  .ext { margin-left: 4px; color: var(--ink-faint); text-decoration: none; font-size: var(--fs-sm); }
+  .ext:hover { color: var(--accent); }
+  .meta {
+    font-size: var(--fs-xs);
+    color: var(--ink-dim);
+    margin-top: 2px;
+    display: flex;
+    gap: var(--sp-3);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+  }
+  .mono { font-family: var(--font-mono); text-transform: none; letter-spacing: 0; }
+</style>

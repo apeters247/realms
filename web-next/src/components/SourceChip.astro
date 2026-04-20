@@ -1,0 +1,23 @@
+---
+// In-flow superscript citation chip. Links to #source-<id> on the same page.
+interface Props { n: number; sourceId: number; }
+const { n, sourceId } = Astro.props;
+---
+<sup class="cite"><a href={`#source-${sourceId}`}>[{n}]</a></sup>
+
+<style>
+  .cite {
+    font-family: var(--font-sans);
+    font-size: 0.72em;
+    margin-left: 1px;
+  }
+  .cite a {
+    color: var(--accent-2);
+    text-decoration: none;
+    padding: 0 2px;
+    border-radius: var(--r-sm);
+  }
+  .cite a:hover {
+    background: var(--bg-alt);
+  }
+</style>

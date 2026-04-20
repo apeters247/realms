@@ -1,0 +1,54 @@
+---
+import { url } from '../lib/url';
+const year = new Date().getFullYear();
+---
+<footer class="footer ui" transition:persist>
+  <div class="footer-inner">
+    <div class="footer-col">
+      <div class="label">About</div>
+      <a href={url('/about/')}>What is REALMS?</a>
+      <a href={url('/about/methodology/')}>Methodology</a>
+      <a href={url('/about/cite/')}>How to cite</a>
+    </div>
+    <div class="footer-col">
+      <div class="label">Data</div>
+      <a href={url('/sources/')}>Sources</a>
+      <a href={url('/feed.xml')}>RSS feed</a>
+      <a href={url('/sitemap-index.xml')}>Sitemap</a>
+    </div>
+    <div class="footer-col">
+      <div class="label">Build</div>
+      <span class="muted">CC-BY-4.0</span>
+      <span class="muted">© {year} REALMS</span>
+    </div>
+  </div>
+</footer>
+<style>
+  .footer {
+    border-top: 1px solid var(--rule);
+    margin-top: var(--sp-9);
+    padding: var(--sp-7) var(--sp-5);
+    background: var(--bg);
+  }
+  .footer-inner {
+    max-width: var(--page-max);
+    margin: 0 auto;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: var(--sp-6);
+  }
+  .footer-col {
+    display: flex;
+    flex-direction: column;
+    gap: var(--sp-1);
+    font-size: var(--fs-sm);
+  }
+  .footer-col a {
+    color: var(--ink-dim);
+    text-decoration: none;
+    line-height: 1.7;
+  }
+  .footer-col a:hover { color: var(--ink); }
+  .footer-col .label { margin-bottom: var(--sp-2); }
+  .muted { color: var(--ink-faint); font-size: var(--fs-xs); line-height: 1.7; }
+</style>

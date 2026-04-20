@@ -1,0 +1,26 @@
+---
+/**
+ * Simple SVG sparkline — strictly word-sized per Tufte. Accepts a sequence
+ * of numbers and renders as a thin line + filled area with final-point dot.
+ */
+interface Props {
+  values: number[];
+  width?: number;
+  height?: number;
+  color?: string;
+  label?: string;
+}
+const { values, width = 120, height = 24, color = 'var(--ink-dim)', label } = Astro.props;
+const max = Math.max(1, ...values);
+const step = values.length > 1 ? width / (values.length - 1) : 0;
+const path = values.map((v, i) => `${i === 0 ? 'M' : 'L'} ${(i * step).toFixed(1)} ${(height - (v / max) * (height - 2) - 1).toFixed(1)}`).join(' ');
+const lastX = (values.length - 1) * step;
+const lastY = height - ((values.at(-1) ?? 0) / max) * (height - 2) - 1;
+---
+<svg class="sparkline" width={width} height={height} viewBox={`0 0 ${width} ${height}`} aria-label={label || 'sparkline'} role="img">
+  <path d={path} fill="none" stroke={color} stroke-width="1"/>
+  <circle cx={lastX} cy={lastY} r="1.8" fill="var(--accent)"/>
+</svg>
+<style>
+  .sparkline { display: inline-block; vertical-align: baseline; }
+</style>

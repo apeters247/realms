@@ -1,0 +1,29 @@
+---
+import Base from '../../layouts/Base.astro';
+import Breadcrumb from '../../components/Breadcrumb.astro';
+import HoverPreview from '../../islands/HoverPreview.svelte';
+import ReviewActions from '../../islands/researcher/ReviewActions.svelte';
+import { url } from '../../lib/url';
+---
+<Base title="Review queue" description="Low-confidence, single-source, and isolated entities awaiting human review." noindex>
+  <HoverPreview client:idle />
+  <div class="page">
+    <Breadcrumb
+      items={[
+        { label: 'Researcher', href: url('/researcher/') },
+        { label: 'Review queue' },
+      ]}
+    />
+    <h1>Review queue</h1>
+    <p class="subtitle">
+      Approve, reject, or request an LLM suggestion for each candidate.
+      Actions require a valid review token — enable researcher mode first.
+    </p>
+    <ReviewActions client:only="svelte" />
+  </div>
+</Base>
+
+<style>
+  h1 { font-size: var(--fs-2xl); font-weight: 450; margin-bottom: var(--sp-2); }
+  .subtitle { color: var(--ink-dim); margin-bottom: var(--sp-5); max-width: var(--col-prose); }
+</style>

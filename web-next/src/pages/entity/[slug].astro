@@ -1,0 +1,394 @@
+---
+import Base from '../../layouts/Base.astro';
+import Breadcrumb from '../../components/Breadcrumb.astro';
+import ConfidenceRibbon from '../../components/ConfidenceRibbon.astro';
+import Sidenote from '../../components/Sidenote.astro';
+import SourceList from '../../components/SourceList.astro';
+import EntityGraph from '../../islands/EntityGraph.svelte';
+import HoverPreview from '../../islands/HoverPreview.svelte';
+import { loadSnapshot, loadEntityDetail } from '../../lib/loader';
+import { api } from '../../lib/api';
+import { entityJsonLd, breadcrumbJsonLd } from '../../lib/jsonld';
+import { slugify } from '../../lib/slug';
+import { url } from '../../lib/url';
+import type { Corroboration } from '../../lib/types';
+
+export async function getStaticPaths() {
+  const snap = await loadSnapshot();
+  const paths: Array<{ params: { slug: string }; props: { id: number } }> = [];
+  for (const [slug, entity] of Object.entries(snap.entityBySlug)) {
+    paths.push({ params: { slug }, props: { id: entity.id } });
+  }
+  return paths;
+}
+
+const { id } = Astro.props as { id: number };
+const snap = await loadSnapshot();
+const summary = snap.entityById[id];
+if (!summary) {
+  return Astro.redirect('/404', 404);
+}
+
+const entity = await loadEntityDetail(id);
+const slug = snap.entitySlugById[id];
+let corroboration: Corroboration | null = null;
+try {
+  const resp = await api<{ data: Corroboration }>(`/corroboration/${id}`);
+  corroboration = resp.data;
+} catch { /* optional */ }
+
+const site = Astro.site ?? new URL('http://127.0.0.1:8004');
+const canonicalPath = `/entity/${slug}`;
+const canonicalUrl = new URL(canonicalPath, site).toString();
+
+const breadcrumbs = [
+  { label: 'Browse', href: url('/browse/') },
+  { label: entity?.name ?? summary.name },
+];
+
+const jsonLd = entity ? [
+  entityJsonLd(entity, corroboration, canonicalUrl, site.toString()),
+  breadcrumbJsonLd([
+    { name: 'REALMS', url: site.toString() },
+    { name: 'Browse', url: new URL('/browse', site).toString() },
+    { name: entity.name, url: canonicalUrl },
+  ]),
+] : undefined;
+
+const altEntries = Object.entries(entity?.alternate_names ?? {});
+const nRealSources = (corroboration?.n_sources ?? entity?.sources?.length ?? 0);
+const isSynthesized = (entity?.sources?.length ?? 0) > 1;
+
+const culturalLinks = (entity?.cultural_associations ?? []).slice(0, 6);
+const geoLinks = (entity?.geographical_associations ?? []).slice(0, 6);
+
+// Relationship groups rendered as inline prose-like sections.
+const relGroups = Object.entries(entity?.relationships ?? {});
+
+const hasTemporal = entity && (entity.first_documented_year || entity.evidence_period_start || entity.evidence_period_end);
+
+function externalUrl(system: string, extId: string): string | null {
+  const t: Record<string, string> = {
+    wikidata: `https://www.wikidata.org/wiki/${extId}`,
+    viaf: `https://viaf.org/viaf/${extId}`,
+    wordnet: `http://wordnet-rdf.princeton.edu/lemma/${extId}`,
+    geonames: `https://www.geonames.org/${extId}`,
+  };
+  return t[system] || null;
+}
+
+// Backlinks — entities whose outgoing relationships point here, minus what's
+// already shown in the incoming relationships of this entity. Computed from the
+// snapshot so it renders at build time.
+const directedBacklinks = (entity?.relationships
+  ? Object.values(entity.relationships).flat().filter(r => r.direction === 'in')
+  : []
+) as Array<{ entity_id: number; entity_name: string | null }>;
+
+// Additionally look across the full snapshot for any entity whose name appears
+// in *our* cultural_associations or whose description mentions us — skipped
+// for now (expensive at build); keep just the incoming edges.
+
+---
+<Base
+  title={entity?.name ?? summary.name}
+  description={(entity?.description ?? summary.description ?? '').slice(0, 200)}
+  canonical={canonicalPath}
+  jsonLd={jsonLd}
+>
+  <HoverPreview client:idle />
+  <article class="article" transition:name="article-content">
+    <div class="prose">
+      <Breadcrumb items={breadcrumbs} />
+
+      <header class="entity-head">
+        <h1 transition:name={`entity-title-${id}`}>{entity?.name ?? summary.name}</h1>
+        <div class="sub ui">
+          {entity?.entity_type && <span>{entity.entity_type}</span>}
+          {entity?.realm && <><span class="dot" aria-hidden="true">·</span><span>{entity.realm}</span></>}
+          {culturalLinks[0] && <><span class="dot" aria-hidden="true">·</span><span>{culturalLinks[0]}</span></>}
+          <span class="dot" aria-hidden="true">·</span>
+          <ConfidenceRibbon tier={corroboration?.tier} n_sources={nRealSources} />
+        </div>
+        <hr />
+      </header>
+
+      {entity?.description && (
+        <div class:list={['description', { 'has-dropcap': (entity.description || '').length > 120 }]}>
+          {entity.description.split(/\n{2,}/).map((para) => (
+            <p>{para}</p>
+          ))}
+          {isSynthesized && (
+            <p class="synthesis" title="Description merged across multiple extractions">
+              ↻ synthesized from {entity.sources.length} sources
+            </p>
+          )}
+        </div>
+      )}
+
+      {!entity?.description && (
+        <div class="no-description">
+          <p>No description has been captured for this entity yet. {summary.name} was referenced by other entries but has not been directly extracted from its own source text.</p>
+        </div>
+      )}
+
+      {hasTemporal && (
+        <section class="temporal">
+          <h2>When</h2>
+          <dl>
+            {entity?.first_documented_year != null && (
+              <>
+                <dt>First attested</dt>
+                <dd>{entity.first_documented_year < 0 ? `${Math.abs(entity.first_documented_year)} BCE` : `${entity.first_documented_year} CE`}</dd>
+              </>
+            )}
+            {entity?.evidence_period_start != null && entity?.evidence_period_end != null && (
+              <>
+                <dt>Attested period</dt>
+                <dd>{entity.evidence_period_start} – {entity.evidence_period_end}</dd>
+              </>
+            )}
+            {entity?.historical_notes && (
+              <>
+                <dt>Historical notes</dt>
+                <dd>{entity.historical_notes}</dd>
+              </>
+            )}
+          </dl>
+        </section>
+      )}
+
+      {relGroups.length > 0 && (
+        <section class="relationships">
+          <h2>Relationships</h2>
+          <dl>
+            {relGroups.map(([type, list]) => (
+              <div class="rel-row">
+                <dt>{type.replace(/_/g, ' ')}</dt>
+                <dd>
+                  {list.map((r, i) => (
+                    <>
+                      {i > 0 && <span class="sep">, </span>}
+                      {r.entity_name && (
+                        <a
+                          href={url(`/entity/${slugify(r.entity_name)}/`)}
+                          data-preview={r.entity_id}
+                        >{r.entity_name}</a>
+                      )}
+                    </>
+                  ))}
+                </dd>
+              </div>
+            ))}
+          </dl>
+          <EntityGraph client:visible centerId={id} depth={1} />
+          <p class="graph-caption ui">
+            <a href={url(`/graph/?center=${id}`)}>Expand to full subgraph →</a>
+          </p>
+        </section>
+      )}
+
+      {directedBacklinks.length > 0 && (
+        <section class="backlinks">
+          <h2>Mentioned by</h2>
+          <ul class="bl-list">
+            {directedBacklinks.slice(0, 16).map(b => b.entity_name && (
+              <li>
+                <a href={url(`/entity/${slugify(b.entity_name)}/`)} data-preview={b.entity_id}>
+                  {b.entity_name}
+                </a>
+              </li>
+            ))}
+          </ul>
+          {directedBacklinks.length > 16 && <p class="more-tag ui">and {directedBacklinks.length - 16} more</p>}
+        </section>
+      )}
+
+      {entity && <SourceList entity={entity} sourcesByType={corroboration?.sources_by_type} />}
+    </div>
+
+    <aside class="sidenotes" aria-label="Entity attributes">
+      {altEntries.length > 0 && (
+        <Sidenote label="Also known as">
+          <ul>
+            {altEntries.map(([lang, names]) => (
+              <li>
+                <span class="mono small">{lang}</span> — {Array.isArray(names) ? names.join(', ') : String(names)}
+              </li>
+            ))}
+          </ul>
+        </Sidenote>
+      )}
+
+      {culturalLinks.length > 0 && (
+        <Sidenote label="Tradition">
+          <ul>
+            {culturalLinks.map(c => (
+              <li><a href={url(`/tradition/${slugify(String(c))}/`)}>{c}</a></li>
+            ))}
+          </ul>
+        </Sidenote>
+      )}
+
+      {geoLinks.length > 0 && (
+        <Sidenote label="Region">
+          <ul>
+            {geoLinks.map(g => (
+              <li><a href={url(`/region/${slugify(String(g))}/`)}>{g}</a></li>
+            ))}
+          </ul>
+        </Sidenote>
+      )}
+
+      {entity?.external_ids && Object.keys(entity.external_ids).length > 0 && (
+        <Sidenote label="External IDs">
+          <ul>
+            {Object.entries(entity.external_ids).map(([system, extId]) => (
+              <li>
+                <span class="mono small">{system}</span>{' '}
+                {externalUrl(system, String(extId))
+                  ? <a href={externalUrl(system, String(extId))!} target="_blank" rel="noopener">{extId}</a>
+                  : <span class="mono">{extId}</span>}
+              </li>
+            ))}
+          </ul>
+        </Sidenote>
+      )}
+
+      {corroboration && (
+        <Sidenote label="Corroboration">
+          <ul>
+            {corroboration.distinct_source_types.map(t => (
+              <li class="ui">{t}</li>
+            ))}
+          </ul>
+        </Sidenote>
+      )}
+
+      {entity?.powers && entity.powers.length > 0 && (
+        <Sidenote label="Powers">
+          <ul>{entity.powers.slice(0, 8).map(p => <li>{p}</li>)}</ul>
+        </Sidenote>
+      )}
+
+      {entity?.domains && entity.domains.length > 0 && (
+        <Sidenote label="Domains">
+          <ul>{entity.domains.slice(0, 8).map(d => <li>{d}</li>)}</ul>
+        </Sidenote>
+      )}
+    </aside>
+  </article>
+</Base>
+
+<style>
+  .entity-head h1 {
+    font-size: clamp(2rem, 7vw, var(--fs-display));
+    font-weight: 450;
+    line-height: 1.05;
+    letter-spacing: -0.02em;
+    margin-bottom: var(--sp-2);
+    font-variation-settings: 'opsz' 144, 'SOFT' 50, 'WONK' 1;
+    word-break: break-word;
+    overflow-wrap: anywhere;
+  }
+  .sub {
+    display: flex;
+    gap: var(--sp-3);
+    flex-wrap: wrap;
+    font-size: var(--fs-sm);
+    color: var(--ink-dim);
+    text-transform: lowercase;
+    font-variant-caps: small-caps;
+    letter-spacing: 0.04em;
+    align-items: baseline;
+  }
+  .sub .dot { color: var(--ink-faint); }
+  .entity-head hr { margin-top: var(--sp-4); }
+
+  .description p { font-size: var(--fs-md); line-height: var(--lh-loose); }
+  .description.has-dropcap p:first-of-type::first-letter {
+    /* Subtle drop cap in Tufte tradition — only when paragraph is long enough */
+    font-size: 2.4em;
+    line-height: 1;
+    float: left;
+    padding-right: 6px;
+    padding-top: 2px;
+    color: var(--ink);
+    font-weight: 500;
+    font-variation-settings: 'opsz' 144, 'SOFT' 40, 'WONK' 1;
+  }
+  .no-description {
+    padding: var(--sp-4) var(--sp-5);
+    background: var(--bg-alt);
+    border-left: 2px solid var(--ink-faint);
+    color: var(--ink-dim);
+    font-style: italic;
+    font-size: var(--fs-sm);
+    max-width: var(--col-prose);
+  }
+  .synthesis {
+    font-family: var(--font-sans);
+    font-size: var(--fs-sm);
+    color: var(--synthesis);
+    margin-top: var(--sp-3);
+    letter-spacing: 0.02em;
+  }
+
+  .temporal, .relationships { margin-top: var(--sp-7); }
+  .temporal dl, .relationships dl {
+    display: grid;
+    grid-template-columns: 180px 1fr;
+    gap: var(--sp-2) var(--sp-4);
+    margin: 0;
+  }
+  .temporal dt, .relationships dt {
+    font-family: var(--font-sans);
+    font-size: var(--fs-xs);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--ink-faint);
+    align-self: baseline;
+    padding-top: 3px;
+  }
+  .temporal dd, .relationships dd {
+    margin: 0;
+    font-family: var(--font-serif);
+    color: var(--ink);
+  }
+  .relationships .rel-row { display: contents; }
+  .relationships dd a { color: var(--accent-2); }
+  .relationships .sep { color: var(--ink-faint); }
+  .graph-caption {
+    margin-top: var(--sp-3);
+    font-size: var(--fs-sm);
+    color: var(--ink-dim);
+  }
+  .small { font-size: var(--fs-xs); }
+  .mono { font-family: var(--font-mono); }
+
+  .backlinks { margin-top: var(--sp-7); }
+  .bl-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--sp-2) var(--sp-4);
+  }
+  .bl-list li a {
+    font-family: var(--font-serif);
+    color: var(--accent-2);
+    font-size: var(--fs-base);
+    text-decoration: none;
+    padding: 2px 4px;
+    border-radius: var(--r-sm);
+  }
+  .bl-list li a:hover { background: var(--bg-alt); color: var(--ink); }
+  .more-tag {
+    color: var(--ink-faint);
+    font-size: var(--fs-xs);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    margin-top: var(--sp-2);
+  }
+</style>

@@ -1,0 +1,66 @@
+---
+import ConfidenceRibbon from './ConfidenceRibbon.astro';
+import type { EntitySummary } from '../lib/types';
+import { url } from '../lib/url';
+
+interface Props { entity: EntitySummary; slug: string; compact?: boolean; }
+const { entity, slug, compact = false } = Astro.props;
+const cultures = (entity.cultural_associations || []).slice(0, 2).join(' · ');
+---
+<a class:list={['entity-card', { compact }]} href={url(`/entity/${slug}/`)} data-preview={entity.id}>
+  <div class="name">{entity.name}</div>
+  <div class="meta ui">
+    {entity.entity_type && <span class="tag">{entity.entity_type}</span>}
+    {entity.realm && <span class="tag">{entity.realm}</span>}
+    <ConfidenceRibbon confidence={entity.consensus_confidence} compact />
+  </div>
+  {cultures && <div class="culture">{cultures}</div>}
+  {entity.description && !compact && <div class="descr">{entity.description.slice(0, 160)}{entity.description.length > 160 ? '…' : ''}</div>}
+</a>
+
+<style>
+  .entity-card {
+    display: block;
+    padding: var(--sp-4) var(--sp-5);
+    border-bottom: 1px solid var(--rule-soft);
+    text-decoration: none;
+    color: inherit;
+    transition: background var(--dur-fast) var(--ease);
+  }
+  .entity-card:hover { background: var(--bg-alt); }
+  .name {
+    font-family: var(--font-serif);
+    font-size: var(--fs-lg);
+    color: var(--ink);
+    line-height: 1.2;
+    font-weight: 500;
+    margin-bottom: 4px;
+  }
+  .meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--sp-3);
+    font-size: var(--fs-xs);
+    color: var(--ink-faint);
+    margin-bottom: 4px;
+    align-items: baseline;
+  }
+  .tag {
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--ink-dim);
+  }
+  .culture {
+    color: var(--ink-dim);
+    font-size: var(--fs-sm);
+    font-family: var(--font-sans);
+  }
+  .descr {
+    color: var(--ink-dim);
+    font-size: var(--fs-sm);
+    margin-top: var(--sp-2);
+    line-height: 1.55;
+    font-family: var(--font-serif);
+  }
+  .entity-card.compact .meta { gap: var(--sp-2); }
+</style>

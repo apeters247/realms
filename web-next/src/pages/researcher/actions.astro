@@ -1,0 +1,27 @@
+---
+import Base from '../../layouts/Base.astro';
+import Breadcrumb from '../../components/Breadcrumb.astro';
+import AuditLog from '../../islands/researcher/AuditLog.svelte';
+import { url } from '../../lib/url';
+---
+<Base title="Audit log" description="Every review action, external link, and LLM suggestion, in chronological order." noindex>
+  <div class="page">
+    <Breadcrumb
+      items={[
+        { label: 'Researcher', href: url('/researcher/') },
+        { label: 'Audit log' },
+      ]}
+    />
+    <h1>Audit log</h1>
+    <p class="subtitle">
+      Read-only archive. Every approve, reject, edit, merge, link, and LLM suggestion
+      is logged with reviewer identity and before/after values.
+    </p>
+    <AuditLog client:only="svelte" />
+  </div>
+</Base>
+
+<style>
+  h1 { font-size: var(--fs-2xl); font-weight: 450; margin-bottom: var(--sp-2); }
+  .subtitle { color: var(--ink-dim); margin-bottom: var(--sp-5); max-width: var(--col-prose); }
+</style>
