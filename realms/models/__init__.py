@@ -11,6 +11,8 @@ from realms.models.orm import (
     Culture,
     GeographicRegion,
     ReviewAction,
+    IntegrityAudit,
+    FeedbackReport,
 )
 
 __all__ = [
@@ -25,4 +27,6 @@ __all__ = [
     "Culture",
     "GeographicRegion",
     "ReviewAction",
+    "IntegrityAudit",
+    "FeedbackReport",
 ]

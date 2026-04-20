@@ -44,7 +44,7 @@ services:
           cpus: '0.5'
           memory: '512m'
     ports:
-      - "127.0.0.1:8004:8001"
+      - "127.0.0.1:8005:8001"
     environment:
       <<: *common-env
       HOST: 0.0.0.0
@@ -55,6 +55,8 @@ services:
       - ./scripts:/app/scripts
       - ./web:/app/web
       - ./web-next/dist:/app/web-next/dist
+      - ./migrations:/app/migrations
+      - ./alembic.ini:/app/alembic.ini
       - realms-raw-cache:/app/data/raw
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8001/api/health"]

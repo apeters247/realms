@@ -19,6 +19,7 @@ from realms.ingestion.archive_fetcher import fetch_archive
 from realms.ingestion.chunker import chunk_text
 from realms.ingestion.extractor import PROMPT_VERSION, ROLE_FIELDS, extract_entities
 from realms.ingestion.fetcher import FetchedDocument, fetch_wikipedia
+from realms.ingestion.integrity_gate import Action, run_gate
 from realms.ingestion.normalizer import _find_existing, _normalize_name, upsert_entities
 from realms.ingestion.promote_dimensions import promote_all
 from realms.ingestion.pubmed_fetcher import fetch_pubmed
@@ -32,6 +33,11 @@ POLL_INTERVAL = int(os.getenv("REALMS_INGESTOR_POLL_INTERVAL", "20"))
 IDLE_SLEEP = int(os.getenv("REALMS_INGESTOR_IDLE_SLEEP", "60"))
 MAX_CHUNKS_PER_SOURCE = int(os.getenv("REALMS_INGESTOR_MAX_CHUNKS", "20"))
 STUCK_PROCESSING_MINUTES = int(os.getenv("REALMS_INGESTOR_STUCK_MINUTES", "30"))
+# Stream I: integrity gate. Disabled by default until extractor v4 verbatim quotes
+# are confirmed in production. Set REALMS_INTEGRITY_GATE=on to enable.
+INTEGRITY_GATE_ENABLED = os.getenv("REALMS_INTEGRITY_GATE", "off").lower() in {"on", "1", "true"}
+INTEGRITY_ACCEPT_THRESHOLD = float(os.getenv("REALMS_INTEGRITY_ACCEPT", "0.99"))
+INTEGRITY_FLAG_THRESHOLD = float(os.getenv("REALMS_INTEGRITY_FLAG", "0.90"))
 
 _shutdown = False
 
@@ -124,6 +130,29 @@ def _process_source(session: Session, source: IngestionSource) -> tuple[int, int
 
         chunk_names: list[str] = []
         for ent in result.entities:
+            # Stream I: integrity gate.
+            integrity_meta = None
+            integrity_status = "raw"
+            if INTEGRITY_GATE_ENABLED:
+                try:
+                    verdict = run_gate(
+                        asdict(ent),
+                        chunk.text,
+                        accept_threshold=INTEGRITY_ACCEPT_THRESHOLD,
+                        flag_threshold=INTEGRITY_FLAG_THRESHOLD,
+                    )
+                    integrity_meta = verdict.to_jsonb()
+                    if verdict.action == Action.REJECT:
+                        log.info("[source=%d] REJECT %s (score=%.2f)",
+                                 source.id, ent.name, verdict.integrity_score)
+                        continue  # skip persistence entirely
+                    if verdict.action == Action.FLAG_FOR_REVIEW:
+                        integrity_status = "flagged"
+                        log.info("[source=%d] FLAG %s (score=%.2f)",
+                                 source.id, ent.name, verdict.integrity_score)
+                except Exception as exc:  # noqa: BLE001
+                    log.warning("[source=%d] integrity gate error on %s: %s",
+                                source.id, ent.name, exc)
             ingested = IngestedEntity(
                 source_id=source.id,
                 extraction_method="llm_prompt_v1",
@@ -138,7 +167,8 @@ def _process_source(session: Session, source: IngestionSource) -> tuple[int, int
                 extraction_context=chunk.text[:1500],
                 section_title=chunk.section_title,
                 quote_context=ent.quote_context,
-                status="raw",
+                integrity_meta=integrity_meta,
+                status=integrity_status,
             )
             session.add(ingested)
             session.flush()

@@ -98,6 +98,9 @@ class IngestedEntity(Base):
     page_number: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     section_title: Mapped[Optional[str]] = mapped_column(String(200), nullable=True)
     quote_context: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    # Integrity pipeline record (Stream I, Phase 8):
+    #   { entity_name, integrity_score ∈ [0,1], action, checks: [...] }
+    integrity_meta: Mapped[Optional[Any]] = mapped_column(JSONB, nullable=True)
     status: Mapped[str] = mapped_column(String(20), default="raw", index=True)
     reviewer_notes: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     reviewed_by: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
@@ -326,6 +329,50 @@ class ReviewAction(Base):
     note: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+
+class IntegrityAudit(Base):
+    """Oracle sampling record (Stream I).
+
+    A nightly job samples N recent extractions and asks a top-tier model
+    (Claude Opus) to independently judge each claim. The aggregate error
+    rate across these samples is the corpus-level integrity metric.
+    """
+
+    __tablename__ = "integrity_audits"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    audited_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False, index=True
+    )
+    sample_size: Mapped[int] = mapped_column(Integer, nullable=False)
+    n_supported: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    n_ambiguous: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    n_contradicted: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    oracle_model: Mapped[str] = mapped_column(String(100), nullable=False)
+    sample_ids: Mapped[Optional[Any]] = mapped_column(JSONB, nullable=True)  # [{ext_id, claim, quote, verdict, conf}]
+    notes: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+
+
+class FeedbackReport(Base):
+    """Public error-reporting submissions (Stream R)."""
+
+    __tablename__ = "feedback_reports"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    entity_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("entities.id", ondelete="CASCADE"), nullable=True, index=True
+    )
+    field: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
+    issue_type: Mapped[str] = mapped_column(String(40), nullable=False, index=True)
+    message: Mapped[str] = mapped_column(Text, nullable=False)
+    reporter_email: Mapped[Optional[str]] = mapped_column(String(200), nullable=True)
+    reporter_ip_hash: Mapped[Optional[str]] = mapped_column(String(64), nullable=True, index=True)
+    status: Mapped[str] = mapped_column(String(20), default="open", index=True)
+    resolution: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False, index=True
     )
 
 

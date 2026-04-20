@@ -58,12 +58,29 @@ Each is an array of **other entity names as they appear in the text**. Use exact
 - `syncretized_with`: X is identified with (listed here; e.g. Catholic saints ↔ orishas)
 - `created_by`: one-time creator (not ongoing parenthood)
 
-## Temporal fields (v4, all optional — leave null if not stated)
+## Temporal fields (v4 — populate whenever the text gives any temporal signal)
 
-- `first_attested_year`: earliest integer CE year the text attributes to the entity (e.g., an inscription, codex, ethnographic record). Negative for BCE. Null if only vague ("ancient", "pre-modern") or not given.
-- `evidence_period_start`: integer CE year; earliest year of the period during which the entity was actively documented / venerated.
-- `evidence_period_end`: integer CE year; latest; may equal `evidence_period_start` for point attestations.
-- `historical_notes`: ≤200 chars, one sentence. Factual note about the entity's historical trajectory only — avoid speculation.
+Populate aggressively at **century granularity** or better. Prefer a rough-but-grounded century over `null` when the text supports it.
+
+- `first_attested_year`: earliest integer CE year the text attributes to the entity. Negative for BCE. Use the earliest year of the stated century if only a century is given (e.g., "3rd century BCE" → -300; "Bronze Age" → -3000; "Medieval" → 500; "Late Antiquity" → 200; "Iron Age Scandinavia" → -500).
+- `evidence_period_start`: integer CE year; earliest of the documentation window.
+- `evidence_period_end`: integer CE year; latest of the documentation window. For living traditions cite the present: 2020.
+- `era_confidence` ∈ {"exact", "century", "broad_era"} — precision label. `exact` = specific year given; `century` = century range; `broad_era` = millennia-scale like "Bronze Age".
+- `historical_notes`: ≤200 chars, one sentence. Factual. Avoid speculation.
+
+**Conversion hints:**
+| Text phrase | first_attested_year |
+|-------------|---------------------|
+| "1st century BCE" | -100 |
+| "3rd century CE" / "3rd c." | 200 |
+| "Late Bronze Age (c. 1500–1200 BCE)" | -1500 |
+| "Mesopotamian cuneiform tablets" | -3000 |
+| "Vedic period" | -1500 |
+| "pre-Islamic Arabia" | 0 |
+| "Medieval Ireland" | 500 |
+| "Early modern Europe" | 1500 |
+| "19th-century folklore collections" | 1800 |
+| "oral tradition recorded in the 1970s" | 1970 |
 
 ## Output Schema
 
@@ -98,6 +115,7 @@ Each is an array of **other entity names as they appear in the text**. Use exact
       "first_attested_year": 0,
       "evidence_period_start": 0,
       "evidence_period_end": 0,
+      "era_confidence": "exact | century | broad_era | null",
       "historical_notes": "string or null",
       "confidence": 0.0,
       "quote_context": "string ≤300 chars"
