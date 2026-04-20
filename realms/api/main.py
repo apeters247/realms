@@ -17,7 +17,8 @@ from realms.api.rate_limit import limiter
 from realms.api.routes import entities, classes, hierarchy, relationships, cultures, regions, sources, search, stats, metrics, graph, export, review, corroboration, timeline, external_links
 from realms.api.routes.sources import extractions_router
 
-WEB_DIR = Path(os.getenv("REALMS_WEB_DIR", "/app/web"))
+WEB_DIR = Path(os.getenv("REALMS_WEB_DIR", "/app/web-next/dist"))
+LEGACY_WEB_DIR = Path(os.getenv("REALMS_LEGACY_WEB_DIR", "/app/web"))
 
 app = FastAPI(
     title="REALMS API",
@@ -71,6 +72,8 @@ app.include_router(external_links.router, prefix="/external-links", tags=["exter
 
 if WEB_DIR.exists():
     app.mount("/app", StaticFiles(directory=str(WEB_DIR), html=True), name="web")
+if LEGACY_WEB_DIR.exists() and LEGACY_WEB_DIR != WEB_DIR:
+    app.mount("/app-legacy", StaticFiles(directory=str(LEGACY_WEB_DIR), html=True), name="web-legacy")
 
 
 @app.get("/")
