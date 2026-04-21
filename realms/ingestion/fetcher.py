@@ -123,25 +123,52 @@ def _wikisource_title_from_url(url: str) -> Optional[str]:
 
 
 def _wikisource_plaintext(lang: str, title: str) -> str:
-    """Same REST extract API as Wikipedia, different host."""
+    """Wikisource articles are typically Page:-namespace transclusions, so the
+    MediaWiki ``extracts`` extension returns an empty string for them. Use
+    ``action=parse&prop=text`` to get rendered HTML, then strip to plain
+    text via BeautifulSoup.
+    """
+    try:
+        from bs4 import BeautifulSoup
+    except ImportError as exc:
+        raise RuntimeError("beautifulsoup4 required for wikisource fetch") from exc
+
     resp = requests.get(
         f"https://{lang}.wikisource.org/w/api.php",
         params={
-            "action": "query", "format": "json", "prop": "extracts",
-            "explaintext": "1", "redirects": "1", "titles": title,
+            "action": "parse",
+            "page": title,
+            "prop": "text",
+            "formatversion": "2",
+            "format": "json",
+            "redirects": "1",
         },
         headers={"User-Agent": USER_AGENT},
         timeout=60,
     )
     resp.raise_for_status()
     data = resp.json()
-    for _pid, page in data.get("query", {}).get("pages", {}).items():
-        if "missing" in page:
-            raise LookupError(f"Wikisource title missing: {title}")
-        extract = page.get("extract")
-        if extract:
-            return extract
-    raise LookupError(f"Wikisource returned no extract for: {title}")
+    if "error" in data:
+        raise LookupError(f"Wikisource error for {title}: {data['error'].get('code')}")
+    parse = data.get("parse", {})
+    html = parse.get("text", "") or ""
+    if isinstance(html, dict):
+        html = html.get("*", "")
+    if not html:
+        raise LookupError(f"Wikisource returned no HTML for: {title}")
+
+    soup = BeautifulSoup(html, "html.parser")
+    for sel in [".ws-noexport", ".noprint", ".mw-references", ".reference",
+                ".reflist", "table.footer", "span.pagenum"]:
+        for tag in soup.select(sel):
+            tag.decompose()
+    for tag in soup(["script", "style"]):
+        tag.decompose()
+    text = soup.get_text(separator="\n", strip=True)
+    text = re.sub(r"\n{3,}", "\n\n", text)
+    if len(text) < 100:
+        raise LookupError(f"Wikisource text too short for {title} ({len(text)} chars)")
+    return text
 
 
 def fetch_wikisource(url: str, cache_dir: Path = DEFAULT_CACHE_DIR) -> FetchedDocument:
