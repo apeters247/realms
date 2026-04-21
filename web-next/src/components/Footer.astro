@@ -8,18 +8,30 @@ const year = new Date().getFullYear();
       <div class="label">About</div>
       <a href={url('/about/')}>What is REALMS?</a>
       <a href={url('/about/methodology/')}>Methodology</a>
+      <a href={url('/about/ethics/')}>Ethics</a>
       <a href={url('/about/cite/')}>How to cite</a>
+    </div>
+    <div class="footer-col">
+      <div class="label">Explore</div>
+      <a href={url('/collections/')}>Collections</a>
+      <a href={url('/graph/')}>Graph</a>
+      <a href={url('/timeline/')}>Timeline</a>
+      <a href={url('/map/')}>Map</a>
     </div>
     <div class="footer-col">
       <div class="label">Data</div>
       <a href={url('/sources/')}>Sources</a>
+      <a href={url('/export/entities.json')}>Dataset (JSON)</a>
+      <a href={url('/export/relationships.csv')}>Relationships (CSV)</a>
       <a href={url('/feed.xml')}>RSS feed</a>
       <a href={url('/sitemap-index.xml')}>Sitemap</a>
+      <a href="https://github.com/apeters247/realms" rel="noopener">Source code</a>
     </div>
     <div class="footer-col">
       <div class="label">Build</div>
       <span class="muted">CC-BY-4.0</span>
       <span class="muted">© {year} REALMS</span>
+      <span class="muted">No ads. No tracking.</span>
     </div>
   </div>
 </footer>

@@ -8,6 +8,20 @@
   let status = $state('loading');
   let semanticOnly = $state(true);
   let maxNodes = $state(300);
+  let traditionFilter = $state<string>('');  // empty = all
+  let availableTraditions = $state<string[]>([]);
+
+  // 12 muted hues for tradition coloring. Fallback is ink-faint.
+  const TRADITION_COLORS = [
+    '#7a1f13', '#1b4b6b', '#3f6b2e', '#8b5a2b', '#5d4b8b',
+    '#b8860b', '#4a7c7d', '#7a3a5c', '#2e5d40', '#a54a1a',
+    '#3a4a7c', '#6b4a2e',
+  ];
+  function colorForTradition(t: string | null | undefined): string {
+    if (!t) return '#a8a298';
+    const idx = Array.from(t).reduce((h, c) => (h * 31 + c.charCodeAt(0)) | 0, 0);
+    return TRADITION_COLORS[Math.abs(idx) % TRADITION_COLORS.length];
+  }
 
   async function render() {
     if (!container) return;
@@ -24,8 +38,49 @@
       // API already returns Cytoscape-format {data: {...}}
       const rawNodes: any[] = payload.data?.nodes ?? payload.nodes ?? [];
       const rawEdges: any[] = payload.data?.edges ?? payload.edges ?? [];
-      const nodes = rawNodes.map(n => ({ data: n.data ?? n }));
-      const edges = rawEdges.map(e => ({ data: e.data ?? e }));
+
+      // Collect traditions for the filter dropdown (first cultural_association per entity)
+      const tradSet = new Set<string>();
+      for (const n of rawNodes) {
+        const d = n.data ?? n;
+        const t = (Array.isArray(d.cultural_associations) ? d.cultural_associations[0] : null);
+        if (t) tradSet.add(t);
+      }
+      availableTraditions = [...tradSet].sort();
+
+      // Optionally filter nodes by tradition; drop orphaned edges afterwards.
+      let keptNodes = rawNodes;
+      if (traditionFilter) {
+        const kept = new Set<string>();
+        keptNodes = rawNodes.filter(n => {
+          const d = n.data ?? n;
+          const t = (Array.isArray(d.cultural_associations) ? d.cultural_associations[0] : null);
+          if (t === traditionFilter) {
+            kept.add(String(d.id));
+            return true;
+          }
+          return false;
+        });
+        var validEdges = rawEdges.filter(e => {
+          const d = e.data ?? e;
+          return kept.has(String(d.source)) && kept.has(String(d.target));
+        });
+      } else {
+        var validEdges = rawEdges;
+      }
+
+      const nodes = keptNodes.map(n => {
+        const d = n.data ?? n;
+        const trad = (Array.isArray(d.cultural_associations) ? d.cultural_associations[0] : null);
+        return {
+          data: {
+            ...d,
+            _color: colorForTradition(trad),
+            _size: 10 + Math.min(8, Number(d.confidence ?? 0) * 8),
+          },
+        };
+      });
+      const edges = validEdges.map(e => ({ data: e.data ?? e }));
 
       const root = getComputedStyle(document.documentElement);
       const ink = root.getPropertyValue('--ink').trim();
@@ -45,12 +100,13 @@
           {
             selector: 'node',
             style: {
-              'background-color': bg,
-              'border-color': inkDim,
+              'background-color': 'data(_color)',
+              'border-color': 'data(_color)',
               'border-width': 1,
+              'border-opacity': 0.8,
               'color': ink,
-              'width': 8,
-              'height': 8,
+              'width': 'data(_size)',
+              'height': 'data(_size)',
               'text-valign': 'bottom',
               'text-margin-y': 3,
               'min-zoomed-font-size': 7,
@@ -126,6 +182,15 @@
     Max nodes
     <input type="number" min="50" max="1000" step="50" bind:value={maxNodes} onchange={render} />
   </label>
+  <label>
+    Tradition
+    <select bind:value={traditionFilter} onchange={render}>
+      <option value="">all ({availableTraditions.length})</option>
+      {#each availableTraditions as t}
+        <option value={t}>{t}</option>
+      {/each}
+    </select>
+  </label>
   <span class="status">{status}</span>
 </div>
 <div class="graph" bind:this={container}></div>
@@ -145,15 +210,18 @@
     flex-wrap: wrap;
   }
   .controls label { display: flex; align-items: center; gap: var(--sp-2); }
-  .controls input[type='number'] {
-    width: 72px;
+  .controls input[type='number'],
+  .controls select {
     padding: 2px 6px;
     border: 1px solid var(--rule);
     border-radius: var(--r-sm);
     background: var(--bg);
     color: var(--ink);
     font-family: var(--font-mono);
+    font-size: inherit;
   }
+  .controls input[type='number'] { width: 72px; }
+  .controls select { max-width: 220px; }
   .status { margin-left: auto; color: var(--ink-faint); font-family: var(--font-mono); font-size: var(--fs-xs); }
   .graph {
     width: 100%;

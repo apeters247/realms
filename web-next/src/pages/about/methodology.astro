@@ -1,6 +1,7 @@
 ---
 import Base from '../../layouts/Base.astro';
 import Breadcrumb from '../../components/Breadcrumb.astro';
+import IntegrityBadge from '../../islands/IntegrityBadge.svelte';
 import { url } from '../../lib/url';
 ---
 <Base title="Methodology" description="How REALMS collects, extracts, verifies, and scores entity claims.">
@@ -9,39 +10,67 @@ import { url } from '../../lib/url';
       <Breadcrumb items={[{ label: 'About', href: url('/about/') }, { label: 'Methodology' }]} />
       <h1>Methodology</h1>
 
-      <h2>Source selection</h2>
+      <p class="lede">
+        Every claim in REALMS is attached to a source text and passed through a
+        four-stage verification pipeline before it appears on the public site.
+        This page describes the pipeline end-to-end and shows the current
+        error rate measured by an independent oracle sampler.
+      </p>
+
+      <IntegrityBadge client:visible />
+
+      <h2>1. Source selection</h2>
       <p>
-        We ingest three layers. <strong>Wikipedia</strong> articles in English form
-        the first pass — broad, hyperlinked, and well-covered for popular entities.
+        We ingest three layers of source material. <strong>Wikipedia</strong> articles in English
+        form the first pass — broad, hyperlinked, and well-covered for popular entities.
         <strong>PubMed abstracts</strong> provide peer-reviewed anthropology and
         religious-studies citations for each entity. <strong>Internet Archive</strong>
         scans provide pre-1929 public-domain monographs (Frazer, Grey, Stevenson,
         Parrinder, Mooney, et al.) for primary ethnography.
       </p>
+      <p>
+        We hard-exclude Tier 3 (modern entheogenic visionary literature) and
+        Tier 4 (modern occult / fiction / UFO-adjacent) content — see the
+        <a href={url('/about/ethics/')}>ethics</a> page for why.
+      </p>
 
-      <h2>Extraction</h2>
+      <h2>2. Extraction</h2>
       <p>
         Each source is fetched, cached, and broken into ~3,500-character chunks.
         Each chunk is sent through an LLM prompt (current version: <span class="mono">v4</span>)
-        asking for a JSON list of entities with fixed fields and explicit
-        relationship role-fields. The LLM, temperature, prompt version, and raw
-        response are recorded for every extraction. We never discard a source
-        passage — quotes are preserved as <span class="mono">quote_context</span>
-        on each <span class="mono">IngestedEntity</span> row.
+        asking for a JSON list of entities with fixed fields, explicit relationship
+        role-fields, and a verbatim <span class="mono">quote_context</span> that
+        anchors every claim to the source text.
       </p>
 
-      <h2>Normalization</h2>
+      <h2>3. Verification (four-stage integrity pipeline)</h2>
+      <ol>
+        <li><strong>Stage 1 — deterministic quote check.</strong> The quote_context must
+        appear (unicode-normalised, diacritic-stripped) in the source chunk. Missing
+        quotes are rejected outright.</li>
+        <li><strong>Stage 2 — semantic verification.</strong> An independent LLM (different
+        from the extractor; currently Gemini 2.0 Flash) judges whether the quote
+        supports, is ambiguous about, or contradicts the claim. Confidence &lt; 0.85
+        downgrades the claim.</li>
+        <li><strong>Stage 3 — per-entity gate.</strong> An entity is <em>accepted</em> when ≥99%
+        of its claims pass, <em>flagged for review</em> between 90% and 99%, and
+        <em>rejected</em> below 90%. The thresholds are tunable in env.</li>
+        <li><strong>Stage 4 — oracle sampling.</strong> A nightly job draws a random sample
+        of recent extractions and asks a top-tier model (Claude Opus) to
+        independently judge each claim. The aggregate error rate is what appears
+        in the badge above.</li>
+      </ol>
+
+      <h2>4. Normalisation & corroboration</h2>
       <p>
         We match entities by exact case-insensitive name first, then by a stem
         key (diacritic-stripped, plural-tolerant). Merges carry forward the
         union of alternate names, powers, domains, cultural associations, and
         provenance source IDs. Temporal fields follow earliest/widest semantics.
       </p>
-
-      <h2>Confidence and corroboration</h2>
       <p>
-        Each extraction carries an LLM-reported confidence in [0,1]. Entity-level
-        <span class="mono">consensus_confidence</span> is the average of its
+        Each extraction carries an LLM-reported confidence. Entity-level
+        <span class="mono">consensus_confidence</span> is the average across
         extractions. We additionally compute a <strong>corroboration tier</strong>:
       </p>
       <ul>
@@ -51,7 +80,15 @@ import { url } from '../../lib/url';
         <li><strong>tier_0 (stub)</strong> — referenced by another entity but never directly extracted.</li>
       </ul>
 
-      <h2>Human review</h2>
+      <h2>5. Cross-database linking</h2>
+      <p>
+        A matcher proposes candidate Wikidata and VIAF identifiers for each
+        entity. A link is auto-accepted only when the top candidate's confidence
+        exceeds 0.85 <em>and</em> beats the runner-up by at least 2×. Otherwise
+        the candidates queue for manual review.
+      </p>
+
+      <h2>6. Human review</h2>
       <p>
         Low-confidence, single-source, and isolated entities surface in a review
         queue. Reviewers can approve, reject, edit (whitelisted fields only),
@@ -60,32 +97,33 @@ import { url } from '../../lib/url';
         new values; nothing is silently overwritten.
       </p>
 
-      <h2>Cross-database linking</h2>
+      <h2>How to cite</h2>
       <p>
-        A matcher proposes candidate Wikidata and VIAF identifiers for each
-        entity. A link is auto-accepted only when the top candidate's
-        confidence exceeds 0.85 <em>and</em> beats the runner-up by at least
-        2×. Otherwise the candidates queue for manual review.
+        Every entity page has a <em>Cite this entity</em> button that generates
+        APA, MLA, Chicago, BibTeX, and CSL-JSON (Zotero / Mendeley) forms. The
+        dataset is licensed <a href="https://creativecommons.org/licenses/by/4.0/" rel="noopener">CC-BY-4.0</a> —
+        please attribute REALMS and link back to the entity URL.
       </p>
 
       <h2>Known limitations</h2>
       <ul>
         <li>Source language is currently English-only; many primary sources are not in English and are under-represented.</li>
         <li>Wikipedia is a secondary source. Where it disagrees with primary ethnography, the archive.org layer should take precedence — but our merge strategy currently treats them symmetrically.</li>
-        <li>Some entity types (e.g., collective ancestor spirits) are difficult to disambiguate from abstract categories; the LLM occasionally over-extracts.</li>
+        <li>Some entity types (e.g., collective ancestor spirits) are difficult to disambiguate from abstract categories; the LLM occasionally over-extracts. These surface in the flagged queue.</li>
         <li>Coverage is uneven: traditions with more digitized public-domain scholarship are over-represented.</li>
       </ul>
 
       <h2>Reproducibility</h2>
       <p>
         The pipeline source is at
-        <a href="https://github.com/apeters247/realms" target="_blank" rel="noopener">github.com/apeters247/realms</a>
-        (private during build-out). Every entity row records its
-        <span class="mono">extraction_instances</span> and
-        <span class="mono">provenance_sources</span> as arrays of integer IDs,
-        and every source row records its URL, DOI, hash, and fetch date. A
-        machine-readable dataset export is available at
-        <a href="/export/entities.json">/export/entities.json</a> (CC-BY-4.0).
+        <a href="https://github.com/apeters247/realms" target="_blank" rel="noopener">github.com/apeters247/realms</a>.
+        Every entity row records its <span class="mono">extraction_instances</span>
+        and <span class="mono">provenance_sources</span> as arrays of integer IDs,
+        and every source row records its URL, DOI, hash, and fetch date.
+        Machine-readable dataset exports are available at
+        <a href={url('/export/entities.json')}>/export/entities.json</a>,
+        <a href={url('/export/relationships.csv')}>/export/relationships.csv</a>, and
+        per-entity at <span class="mono">/export/entity/&lt;id&gt;.json</span> / <span class="mono">.bib</span> / <span class="mono">.csl.json</span>.
       </p>
     </div>
   </article>
@@ -93,10 +131,22 @@ import { url } from '../../lib/url';
 
 <style>
   h1 { font-size: var(--fs-3xl); font-weight: 450; margin-bottom: var(--sp-4); }
+  .lede {
+    font-size: var(--fs-md);
+    line-height: var(--lh-loose);
+    color: var(--ink);
+    margin-bottom: var(--sp-5);
+    max-width: var(--col-prose);
+  }
   h2 {
     font-size: var(--fs-xl);
     margin-top: var(--sp-7);
   }
+  ol, ul {
+    max-width: var(--col-prose);
+    line-height: var(--lh-loose);
+  }
+  ol li, ul li { margin-bottom: var(--sp-2); }
   .mono {
     font-family: var(--font-mono);
     font-size: 0.92em;

@@ -1,0 +1,100 @@
+---
+import Base from '../layouts/Base.astro';
+import Breadcrumb from '../components/Breadcrumb.astro';
+import { api } from '../lib/api';
+import { url } from '../lib/url';
+
+interface CollectionSummary {
+  slug: string;
+  title: string;
+  subtitle: string;
+  description: string;
+  n_members: number;
+}
+
+let collections: CollectionSummary[] = [];
+try {
+  const r = await api<{ data: CollectionSummary[] }>('/collections/');
+  collections = r.data || [];
+} catch { /* tolerate */ }
+---
+<Base
+  title="Collections"
+  description="Curated thematic groupings — solar deities, psychopomps, forest spirits, tricksters, and more."
+  canonical="/collections"
+>
+  <div class="page">
+    <Breadcrumb items={[{ label: 'Collections' }]} />
+    <h1>Collections</h1>
+    <p class="subtitle">
+      Thematic groupings of entities by shared domain, realm, or archetype.
+      Every collection is auto-generated from the structured data; membership
+      updates as ingestion continues.
+    </p>
+
+    <div class="grid">
+      {collections.map(c => (
+        <a href={url(`/collection/${c.slug}/`)} class="tile">
+          <h2>{c.title}</h2>
+          <p class="sub ui">{c.subtitle}</p>
+          <p class="desc">{c.description}</p>
+          <p class="count ui">{c.n_members} entities</p>
+        </a>
+      ))}
+    </div>
+  </div>
+</Base>
+
+<style>
+  h1 { font-size: var(--fs-3xl); font-weight: 450; margin-bottom: var(--sp-2); }
+  .subtitle {
+    color: var(--ink-dim);
+    max-width: var(--col-prose);
+    margin-bottom: var(--sp-6);
+    font-size: var(--fs-md);
+    line-height: var(--lh-loose);
+  }
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: var(--sp-3);
+  }
+  .tile {
+    display: block;
+    padding: var(--sp-4);
+    border: 1px solid var(--rule);
+    border-radius: var(--r-md);
+    background: var(--bg-alt);
+    color: inherit;
+    text-decoration: none;
+    transition: border-color var(--dur-base) var(--ease);
+  }
+  .tile:hover {
+    border-color: var(--accent);
+  }
+  .tile h2 {
+    font-size: var(--fs-lg);
+    font-weight: 450;
+    margin: 0 0 2px 0;
+  }
+  .tile .sub {
+    color: var(--ink-faint);
+    font-size: var(--fs-xs);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    margin: 0 0 var(--sp-2) 0;
+  }
+  .tile .desc {
+    color: var(--ink-dim);
+    font-size: var(--fs-sm);
+    line-height: var(--lh-base);
+    margin: 0 0 var(--sp-3) 0;
+  }
+  .tile .count {
+    color: var(--ink);
+    font-family: var(--font-mono);
+    font-size: var(--fs-xs);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+  }
+</style>

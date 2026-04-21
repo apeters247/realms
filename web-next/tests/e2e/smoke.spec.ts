@@ -274,6 +274,133 @@ test.describe('smoke', () => {
     await expect(page.locator('.controls')).toBeVisible({ timeout: 5000 });
   });
 
+  test('collections index renders tiles', async ({ page }) => {
+    const issues: Issue[] = [];
+    await visit(page, '/collections/', issues);
+    await expect(page.locator('h1')).toHaveText(/Collections/i);
+    const tiles = page.locator('.grid .tile');
+    const count = await tiles.count();
+    console.log(`collections: ${count} tiles`);
+    expect(count).toBeGreaterThanOrEqual(5);
+    // Each tile has a link to /collection/{slug}/
+    const hrefs = await tiles.evaluateAll(els => els.map(e => (e as HTMLAnchorElement).getAttribute('href')));
+    expect(hrefs.every(h => h?.includes('/collection/'))).toBe(true);
+    expect.soft(issues.filter(i => i.kind === 'console')).toHaveLength(0);
+  });
+
+  test('collection detail page lists members', async ({ page }) => {
+    const issues: Issue[] = [];
+    await visit(page, '/collection/solar-deities/', issues);
+    await expect(page.locator('h1')).toHaveText(/Solar Deities/i);
+    // Members (EntityCards) should exist
+    await page.waitForTimeout(500);
+  });
+
+  test('entity page has Cite and Feedback actions', async ({ page }) => {
+    const issues: Issue[] = [];
+    await visit(page, '/entity/chullachaqui/', issues);
+    // Cite button
+    const cite = page.locator('.cite-trigger').first();
+    await expect(cite).toBeVisible({ timeout: 5000 });
+    // Feedback button
+    const fb = page.locator('.fb-trigger').first();
+    await expect(fb).toBeVisible({ timeout: 5000 });
+    // Opening Cite modal fetches exports
+    await cite.click();
+    await expect(page.locator('.cite-modal')).toBeVisible({ timeout: 3000 });
+    await expect(page.locator('.cite-modal h2')).toContainText(/Cite/i);
+    // APA/MLA/Chicago prose citations render immediately
+    const sections = page.locator('.cite-modal section.fmt');
+    const n = await sections.count();
+    console.log(`cite sections: ${n}`);
+    expect(n).toBeGreaterThanOrEqual(3);
+    // Close via Escape
+    await page.keyboard.press('Escape');
+    await expect(page.locator('.cite-modal')).toBeHidden();
+  });
+
+  test('citation export endpoints serve correct formats', async ({ request }) => {
+    // BibTeX
+    const bib = await request.get(`${PREFIX}/../export/entity/1.bib`.replace('/app/..', ''));
+    // The export endpoint is at the root, not under /app/
+    const bibResp = await request.get('/export/entity/1.bib');
+    expect(bibResp.status()).toBe(200);
+    const bibText = await bibResp.text();
+    expect(bibText).toMatch(/@misc\{realms-/);
+    expect(bibText).toMatch(/license\s*=\s*\{CC-BY-4\.0\}/);
+
+    const cslResp = await request.get('/export/entity/1.csl.json');
+    expect(cslResp.status()).toBe(200);
+    const csl = await cslResp.json();
+    expect(Array.isArray(csl)).toBe(true);
+    expect(csl[0]).toHaveProperty('id');
+    expect(csl[0]).toHaveProperty('title');
+
+    const jsonResp = await request.get('/export/entity/1.json');
+    expect(jsonResp.status()).toBe(200);
+    const jsonPayload = await jsonResp.json();
+    expect(jsonPayload.data).toHaveProperty('name');
+    expect(jsonPayload.meta.license).toBe('CC-BY-4.0');
+  });
+
+  test('methodology page shows integrity badge', async ({ page }) => {
+    const issues: Issue[] = [];
+    await visit(page, '/about/methodology/', issues);
+    await expect(page.locator('h1')).toHaveText(/Methodology/i);
+    // Badge island should mount
+    await page.waitForTimeout(1500);
+    const badge = page.locator('.badge').first();
+    await expect(badge).toBeVisible({ timeout: 5000 });
+  });
+
+  test('ethics page renders', async ({ page }) => {
+    const issues: Issue[] = [];
+    await visit(page, '/about/ethics/', issues);
+    await expect(page.locator('h1')).toHaveText(/Ethics/i);
+    await expect(page.locator('h2').first()).toBeVisible();
+  });
+
+  test('integrity API endpoints respond', async ({ request }) => {
+    const r1 = await request.get('/integrity/stats');
+    expect(r1.status()).toBe(200);
+    const stats = await r1.json();
+    expect(stats.data).toHaveProperty('integrity_score');
+    expect(stats.data).toHaveProperty('window_days');
+
+    const r2 = await request.get('/integrity/recent_audits?limit=5');
+    expect(r2.status()).toBe(200);
+  });
+
+  test('feedback POST rejects short messages', async ({ request }) => {
+    const resp = await request.post('/feedback', {
+      data: { issue_type: 'typo', message: 'too short' },
+      headers: { 'Content-Type': 'application/json' },
+    });
+    expect(resp.status()).toBeGreaterThanOrEqual(400);
+  });
+
+  test('feedback POST accepts valid messages', async ({ request }) => {
+    const resp = await request.post('/feedback', {
+      data: {
+        entity_id: 1,
+        issue_type: 'typo',
+        message: 'Test submission from Playwright smoke — please ignore.',
+      },
+      headers: { 'Content-Type': 'application/json' },
+    });
+    expect(resp.status()).toBe(200);
+    const payload = await resp.json();
+    expect(payload.data.status).toMatch(/received|duplicate/);
+  });
+
+  test('collections list API responds', async ({ request }) => {
+    const r = await request.get('/collections/');
+    expect(r.status()).toBe(200);
+    const payload = await r.json();
+    expect(Array.isArray(payload.data)).toBe(true);
+    expect(payload.data.length).toBeGreaterThanOrEqual(5);
+  });
+
   test('researcher routes are noindexed (robots disallow)', async ({ request }) => {
     const r = await request.get(`${PREFIX}/robots.txt`);
     const txt = await r.text();

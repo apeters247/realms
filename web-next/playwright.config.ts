@@ -7,7 +7,7 @@ export default defineConfig({
   retries: 0,
   reporter: [['list'], ['html', { open: 'never', outputFolder: 'playwright-report' }]],
   use: {
-    baseURL: process.env.REALMS_BASE_URL || 'http://127.0.0.1:8004',
+    baseURL: process.env.REALMS_BASE_URL || 'http://127.0.0.1:8005',
     viewport: { width: 1440, height: 900 },
     trace: 'retain-on-failure',
     screenshot: 'only-on-failure',

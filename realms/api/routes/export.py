@@ -1,12 +1,13 @@
-"""Data export endpoints (CSV / JSON dumps of public data)."""
+"""Data export endpoints (CSV / JSON / BibTeX / CSL-JSON dumps of public data)."""
 from __future__ import annotations
 
 import csv
 import io
 import json
+import re
 from typing import Iterable
 
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import Response, StreamingResponse
 from sqlalchemy import select
 
@@ -164,3 +165,128 @@ async def export_sources_json():
             for s in rows
         ]
         return {"data": payload, "meta": {"count": len(payload)}}
+
+
+# -------------- citation formats for a single entity --------------
+
+def _bib_key(name: str, entity_id: int) -> str:
+    """Slugified BibTeX key: realms:<slug>-<id>."""
+    slug = re.sub(r"[^a-z0-9]+", "-", (name or "").lower()).strip("-")[:60] or f"e{entity_id}"
+    return f"realms-{slug}-{entity_id}"
+
+
+def _first_three_sentences(text: str | None) -> str:
+    if not text:
+        return ""
+    # Trim to ~400 chars; honour sentence boundaries.
+    snippet = text[:480]
+    parts = re.split(r"(?<=[.!?])\s+", snippet)
+    return " ".join(parts[:3]).strip()
+
+
+def _build_entity_payload(entity: Entity, canonical_url: str) -> dict:
+    return {
+        "id": entity.id,
+        "name": entity.name,
+        "entity_type": entity.entity_type,
+        "alignment": entity.alignment,
+        "realm": entity.realm,
+        "description": entity.description,
+        "powers": entity.powers or [],
+        "domains": entity.domains or [],
+        "cultural_associations": entity.cultural_associations or [],
+        "geographical_associations": entity.geographical_associations or [],
+        "alternate_names": entity.alternate_names or {},
+        "external_ids": entity.external_ids or {},
+        "first_documented_year": entity.first_documented_year,
+        "evidence_period_start": entity.evidence_period_start,
+        "evidence_period_end": entity.evidence_period_end,
+        "consensus_confidence": float(entity.consensus_confidence or 0.0),
+        "canonical_url": canonical_url,
+    }
+
+
+def _canonical_url(request: Request, path: str) -> str:
+    """Build an absolute canonical URL. Honours X-Forwarded-Proto/Host when set."""
+    host = request.headers.get("x-forwarded-host") or request.url.netloc
+    proto = request.headers.get("x-forwarded-proto") or request.url.scheme
+    return f"{proto}://{host}{path}"
+
+
+@router.get("/entity/{entity_id}.csl.json")
+async def export_entity_csl(entity_id: int, request: Request):
+    """CSL-JSON format suitable for Zotero / Mendeley / Pandoc."""
+    with get_db_session() as session:
+        entity = session.get(Entity, entity_id)
+        if entity is None:
+            raise HTTPException(404, detail="entity not found")
+        slug = re.sub(r"[^a-z0-9]+", "-", entity.name.lower()).strip("-")[:80]
+        canonical = _canonical_url(request, f"/app/entity/{slug}/")
+        item = {
+            "id": f"realms-{entity.id}",
+            "type": "entry-encyclopedia",
+            "title": entity.name,
+            "container-title": "REALMS — Research Entity Archive for Light and Metaphysical Spirit Hierarchies",
+            "URL": canonical,
+            "abstract": _first_three_sentences(entity.description or ""),
+            "note": "CC-BY-4.0",
+        }
+        if entity.first_documented_year is not None:
+            yr = entity.first_documented_year
+            item["issued"] = {"date-parts": [[abs(yr) if yr >= 0 else -abs(yr)]]}
+        return Response(
+            content=json.dumps([item], ensure_ascii=False, indent=2),
+            media_type="application/vnd.citationstyles.csl+json",
+        )
+
+
+@router.get("/entity/{entity_id}.json")
+async def export_entity_json(entity_id: int, request: Request):
+    with get_db_session() as session:
+        entity = session.get(Entity, entity_id)
+        if entity is None:
+            raise HTTPException(404, detail="entity not found")
+        slug = re.sub(r"[^a-z0-9]+", "-", entity.name.lower()).strip("-")[:80]
+        canonical = _canonical_url(request, f"/app/entity/{slug}/")
+        payload = _build_entity_payload(entity, canonical)
+        return {"data": payload, "meta": {"format": "realms-entity/1", "license": "CC-BY-4.0"}}
+
+
+@router.get("/entity/{entity_id}.bib")
+async def export_entity_bibtex(entity_id: int, request: Request):
+    with get_db_session() as session:
+        entity = session.get(Entity, entity_id)
+        if entity is None:
+            raise HTTPException(404, detail="entity not found")
+        slug = re.sub(r"[^a-z0-9]+", "-", entity.name.lower()).strip("-")[:80]
+        canonical = _canonical_url(request, f"/app/entity/{slug}/")
+        key = _bib_key(entity.name, entity.id)
+
+        year_line = ""
+        if entity.first_documented_year is not None:
+            year_line = f"  year         = {{{entity.first_documented_year}}},\n"
+        note = _first_three_sentences(entity.description)
+        culture = (entity.cultural_associations or [""])[0]
+
+        bib = (
+            f"@misc{{{key},\n"
+            f"  title        = {{{_escape_bibtex(entity.name)}}},\n"
+            f"  author       = {{REALMS}},\n"
+            f"  howpublished = {{REALMS — Research Entity Archive for Light and Metaphysical Spirit Hierarchies}},\n"
+            f"  url          = {{{canonical}}},\n"
+            f"{year_line}"
+            f"  note         = {{{_escape_bibtex(note)}{' · ' + _escape_bibtex(culture) if culture else ''}}},\n"
+            f"  license      = {{CC-BY-4.0}}\n"
+            f"}}\n"
+        )
+        return Response(content=bib, media_type="application/x-bibtex")
+
+
+def _escape_bibtex(s: str) -> str:
+    if not s:
+        return ""
+    return (s.replace("\\", r"\\")
+             .replace("{", r"\{").replace("}", r"\}")
+             .replace("%", r"\%").replace("&", r"\&")
+             .replace("$", r"\$").replace("#", r"\#"))
+

@@ -26,6 +26,10 @@ const PAGES = [
   { path: '/researcher/actions/', name: 'researcher-actions' },
   { path: '/researcher/link/', name: 'researcher-link' },
   { path: '/source/1/', name: 'source-detail' },
+  { path: '/collections/', name: 'collections-index' },
+  { path: '/collection/solar-deities/', name: 'collection-solar' },
+  { path: '/collection/death-psychopomps/', name: 'collection-psychopomps' },
+  { path: '/about/ethics/', name: 'ethics' },
 ];
 
 const VIEWPORTS = [

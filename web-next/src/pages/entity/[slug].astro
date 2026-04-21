@@ -6,6 +6,8 @@ import Sidenote from '../../components/Sidenote.astro';
 import SourceList from '../../components/SourceList.astro';
 import EntityGraph from '../../islands/EntityGraph.svelte';
 import HoverPreview from '../../islands/HoverPreview.svelte';
+import CiteModal from '../../islands/CiteModal.svelte';
+import FeedbackForm from '../../islands/FeedbackForm.svelte';
 import { loadSnapshot, loadEntityDetail } from '../../lib/loader';
 import { api } from '../../lib/api';
 import { entityJsonLd, breadcrumbJsonLd } from '../../lib/jsonld';
@@ -205,6 +207,11 @@ const directedBacklinks = (entity?.relationships
       )}
 
       {entity && <SourceList entity={entity} sourcesByType={corroboration?.sources_by_type} />}
+
+      <section class="actions">
+        <CiteModal client:load entityId={id} entityName={entity?.name ?? summary.name} />
+        <FeedbackForm client:load entityId={id} entityName={entity?.name ?? summary.name} />
+      </section>
     </div>
 
     <aside class="sidenotes" aria-label="Entity attributes">
@@ -365,6 +372,15 @@ const directedBacklinks = (entity?.relationships
   }
   .small { font-size: var(--fs-xs); }
   .mono { font-family: var(--font-mono); }
+
+  .actions {
+    margin-top: var(--sp-6);
+    padding-top: var(--sp-4);
+    border-top: 1px solid var(--rule-soft);
+    display: flex;
+    gap: var(--sp-3);
+    flex-wrap: wrap;
+  }
 
   .backlinks { margin-top: var(--sp-7); }
   .bl-list {

@@ -1,0 +1,145 @@
+---
+import Base from '../../layouts/Base.astro';
+import Breadcrumb from '../../components/Breadcrumb.astro';
+import { url } from '../../lib/url';
+---
+<Base
+  title="Ethics"
+  description="Why REALMS treats indigenous knowledge, living traditions, and sacred material with care."
+  canonical="/about/ethics"
+>
+  <article class="article">
+    <div class="prose">
+      <Breadcrumb items={[{ label: 'About', href: url('/about/') }, { label: 'Ethics' }]} />
+      <h1>Ethics</h1>
+
+      <p class="lede">
+        REALMS documents entities from living traditions whose practitioners
+        are, in many cases, still alive. What follows is how we try to do that
+        responsibly, and where we draw lines.
+      </p>
+
+      <h2>What we include</h2>
+      <p>
+        REALMS covers <strong>Tier 1</strong> (classical religious and
+        indigenous traditions — Yoruba, Hindu, Greek, Norse, Celtic, Slavic,
+        Mesoamerican, Sub-Saharan African, Native American, Siberian,
+        Polynesian, and others), and <strong>Tier 2</strong> (regional folklore
+        and culturally-attested legendary creatures — wendigo, kelpie,
+        chullachaqui, leshy, kitsune, jiangshi, and kindred). Every entity has
+        at least one source citation.
+      </p>
+
+      <h2>What we exclude, and why</h2>
+      <ul>
+        <li>
+          <strong>Tier 3 — modern entheogenic / visionary entities.</strong>
+          "DMT machine elves," psychedelic contact entities, tulpamancy
+          constructs, and similar are excluded. These belong to a distinct
+          modern literature that doesn't carry the ethnographic depth of folk
+          tradition. Including them would conflate two very different claims.
+        </li>
+        <li>
+          <strong>Tier 4 — modern occult, chaos magic, fiction, UFO-adjacent.</strong>
+          Slenderman, Thelema egregores, contactee entities, creepypasta. These
+          are fascinating but belong on dedicated fan-sites, not a
+          research database.
+        </li>
+        <li>
+          <strong>Ritual procedure.</strong> We document entities, not ceremonies.
+          If a source describes a song, offering, or initiation sequence, we
+          record that it exists without reproducing it. Where communities have
+          marked material as closed (e.g., kiva-specific Hopi observances),
+          we stop at the marker.
+        </li>
+      </ul>
+
+      <h2>Primacy of living practitioners</h2>
+      <p>
+        Where a living tradition's practitioners would dispute a Wikipedia or
+        academic characterisation, the practitioners are correct. REALMS is a
+        secondary-literature index, not a source of truth. Every entity page
+        includes links to its source texts so readers can trace back to the
+        primary record and, where available, to living communities' own
+        statements.
+      </p>
+      <p>
+        If you are a practitioner, scholar, or community member who finds
+        material here that misrepresents your tradition, please
+        <a href={url('/about/cite/')}>report it</a> — every entity page has an
+        inline "Report an issue" form and we review every submission.
+      </p>
+
+      <h2>Indigenous knowledge & the public-domain question</h2>
+      <p>
+        Much of the published ethnography we draw on was recorded by outside
+        researchers who did not ask for consent in the terms we'd demand
+        today. We use this material because it's the publicly available
+        record, but we flag it as secondary and prefer practitioner-authored
+        work when it exists. The <strong>tier_3</strong> corroboration badge
+        on an entity signals that multiple source types agree; a single
+        <strong>tier_1</strong> badge is a prompt to look harder before
+        trusting it.
+      </p>
+
+      <h2>Syncretism</h2>
+      <p>
+        Many entities here are syncretic — Catholic saints mapped to Yoruba
+        orishas under Santería and Candomblé, Roman gods layered over Greek
+        antecedents, buddhas absorbed into Shintō kami lineages. We record
+        syncretistic identifications as explicit relationships
+        (<span class="mono">syncretized_with</span>) rather than collapsing
+        them into one entity, so each tradition's distinct characterisation
+        remains visible.
+      </p>
+
+      <h2>No monetisation of sacred material</h2>
+      <p>
+        REALMS is free, open, ad-free, tracker-free, and CC-BY-4.0. We take
+        no money from companies that would prefer to profile our readers.
+        The one thing we ask in exchange for the data is attribution when you
+        cite it.
+      </p>
+
+      <h2>What we are not</h2>
+      <p>
+        REALMS is not a spiritual practice guide, a shopping catalogue for
+        appropriated ceremony, a theological authority, or a neutral
+        arbiter of religious truth. It is an index of what published sources
+        say about these entities, held to a measurable standard of
+        verification. What you do with that index is your own.
+      </p>
+
+      <h2>Contact</h2>
+      <p>
+        Ethics concerns, redaction requests, or disputes over characterisation:
+        use the "Report an issue" form on the relevant entity page (issue type:
+        <em>ethics</em>). Reports are reviewed by a human within 14 days and
+        logged in a public audit trail.
+      </p>
+    </div>
+  </article>
+</Base>
+
+<style>
+  h1 { font-size: var(--fs-3xl); font-weight: 450; margin-bottom: var(--sp-4); }
+  .lede {
+    font-size: var(--fs-md);
+    line-height: var(--lh-loose);
+    color: var(--ink);
+    margin-bottom: var(--sp-5);
+    max-width: var(--col-prose);
+    font-style: italic;
+  }
+  h2 { font-size: var(--fs-xl); margin-top: var(--sp-7); }
+  p, li { max-width: var(--col-prose); line-height: var(--lh-loose); }
+  ul { margin-left: 0; padding-left: var(--sp-5); }
+  li { margin-bottom: var(--sp-3); }
+  .mono {
+    font-family: var(--font-mono);
+    font-size: 0.92em;
+    background: var(--bg-alt);
+    padding: 0 4px;
+    border-radius: var(--r-sm);
+  }
+</style>
