@@ -31,8 +31,12 @@ log = logging.getLogger("realms.ingestor")
 
 POLL_INTERVAL = int(os.getenv("REALMS_INGESTOR_POLL_INTERVAL", "20"))
 IDLE_SLEEP = int(os.getenv("REALMS_INGESTOR_IDLE_SLEEP", "60"))
-MAX_CHUNKS_PER_SOURCE = int(os.getenv("REALMS_INGESTOR_MAX_CHUNKS", "20"))
+MAX_CHUNKS_PER_SOURCE = int(os.getenv("REALMS_INGESTOR_MAX_CHUNKS", "8"))
 STUCK_PROCESSING_MINUTES = int(os.getenv("REALMS_INGESTOR_STUCK_MINUTES", "30"))
+# Parallel extraction — each source's chunks fan out to this many concurrent
+# LLM calls. 4 is a safe default that keeps us well under OpenRouter's rate
+# limits while 3-4x-ing end-to-end throughput per source.
+CHUNK_CONCURRENCY = int(os.getenv("REALMS_INGESTOR_CHUNK_CONCURRENCY", "4"))
 # Stream I: integrity gate. Disabled by default until extractor v4 verbatim quotes
 # are confirmed in production. Set REALMS_INTEGRITY_GATE=on to enable.
 INTEGRITY_GATE_ENABLED = os.getenv("REALMS_INTEGRITY_GATE", "off").lower() in {"on", "1", "true"}
@@ -119,14 +123,30 @@ def _process_source(session: Session, source: IngestionSource) -> tuple[int, int
     all_entities_by_norm: dict[str, list] = {}
     chunks_by_idx: dict[int, list[str]] = {}  # chunk_idx -> list of normalized entity names
 
-    for i, chunk in enumerate(chunks):
-        log.info("[source=%d] chunk %d/%d (%d chars, section=%s)",
-                 source.id, i + 1, len(chunks), len(chunk.text), chunk.section_title)
+    # Parallel extraction: fan out up to CHUNK_CONCURRENCY LLM calls at once.
+    # The extractor is blocking (requests), so we use a ThreadPoolExecutor.
+    from concurrent.futures import ThreadPoolExecutor
+
+    def _extract_one(i_and_chunk):
+        i, chunk = i_and_chunk
         try:
-            result = extract_entities(chunk.text, source_name=fetched.title)
+            return i, chunk, extract_entities(chunk.text, source_name=fetched.title)
         except Exception as exc:  # noqa: BLE001
-            log.warning("[source=%d] extraction failed: %s", source.id, exc)
+            log.warning("[source=%d] chunk %d extraction failed: %s", source.id, i + 1, exc)
+            return i, chunk, None
+
+    chunk_results = []
+    with ThreadPoolExecutor(max_workers=CHUNK_CONCURRENCY) as pool:
+        chunk_results = list(pool.map(_extract_one, list(enumerate(chunks))))
+    # Preserve the original order for deterministic logging.
+    chunk_results.sort(key=lambda t: t[0])
+
+    for i, chunk, result in chunk_results:
+        if result is None:
             continue
+        log.info("[source=%d] chunk %d/%d (%d chars, section=%s) → %d ents",
+                 source.id, i + 1, len(chunks), len(chunk.text), chunk.section_title,
+                 len(result.entities))
 
         chunk_names: list[str] = []
         for ent in result.entities:

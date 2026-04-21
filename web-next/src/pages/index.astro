@@ -7,6 +7,7 @@ import { websiteJsonLd } from '../lib/jsonld';
 import { api } from '../lib/api';
 import { url } from '../lib/url';
 import CoverageBar from '../components/CoverageBar.astro';
+import IntegrityBadge from '../islands/IntegrityBadge.svelte';
 
 const snap = await loadSnapshot();
 const site = Astro.site ?? new URL('http://127.0.0.1:8004');
@@ -59,6 +60,13 @@ try {
   const s = await api<{ data: any }>('/corroboration/stats/summary');
   tiers = s.data;
 } catch { /* ignore */ }
+
+// Collections for teaser strip.
+let collections: Array<{ slug: string; title: string; subtitle: string; n_members: number }> = [];
+try {
+  const c = await api<{ data: typeof collections }>('/collections/');
+  collections = (c.data || []).filter(x => x.n_members > 0).slice(0, 6);
+} catch { /* tolerate */ }
 
 const jsonLd = websiteJsonLd(site.toString());
 ---
@@ -121,6 +129,24 @@ const jsonLd = websiteJsonLd(site.toString());
     </section>
   )}
 
+  {collections.length > 0 && (
+    <section class="page">
+      <div class="section-head">
+        <h2>Collections</h2>
+        <a class="more ui" href={url('/collections/')}>All collections →</a>
+      </div>
+      <div class="coll-grid">
+        {collections.map(c => (
+          <a class="coll" href={url(`/collection/${c.slug}/`)}>
+            <span class="coll-title">{c.title}</span>
+            <span class="coll-sub ui">{c.subtitle}</span>
+            <span class="coll-count ui">{c.n_members} entities</span>
+          </a>
+        ))}
+      </div>
+    </section>
+  )}
+
   <section class="page">
     <div class="section-head">
       <h2>Featured entries</h2>
@@ -131,6 +157,14 @@ const jsonLd = websiteJsonLd(site.toString());
         <EntityCard entity={e} slug={snap.entitySlugById[e.id]} />
       ))}
     </div>
+  </section>
+
+  <section class="page integrity-section">
+    <div class="section-head">
+      <h2>Integrity</h2>
+      <a class="more ui" href={url('/about/methodology/')}>How this is measured →</a>
+    </div>
+    <IntegrityBadge client:visible />
   </section>
 
   <section class="page">
@@ -188,6 +222,45 @@ const jsonLd = websiteJsonLd(site.toString());
 </Base>
 
 <style>
+  .coll-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    gap: var(--sp-3);
+  }
+  .coll {
+    display: flex;
+    flex-direction: column;
+    gap: var(--sp-2);
+    padding: var(--sp-3) var(--sp-4);
+    border: 1px solid var(--rule);
+    border-radius: var(--r-md);
+    background: var(--bg-alt);
+    text-decoration: none;
+    color: inherit;
+    transition: border-color var(--dur-base) var(--ease);
+  }
+  .coll:hover { border-color: var(--accent); }
+  .coll-title {
+    font-family: var(--font-serif);
+    font-size: var(--fs-md);
+    color: var(--ink);
+  }
+  .coll-sub {
+    color: var(--ink-faint);
+    font-size: var(--fs-xs);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    line-height: 1.3;
+  }
+  .coll-count {
+    color: var(--ink-dim);
+    font-family: var(--font-mono);
+    font-size: var(--fs-xs);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+  }
+  .integrity-section { max-width: 720px; }
+
   .hero {
     padding-top: var(--sp-8);
     padding-bottom: var(--sp-8);

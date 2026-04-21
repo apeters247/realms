@@ -393,6 +393,54 @@ test.describe('smoke', () => {
     expect(payload.data.status).toMatch(/received|duplicate/);
   });
 
+  test('changelog page renders weekly buckets', async ({ page }) => {
+    const issues: Issue[] = [];
+    await visit(page, '/changelog/', issues);
+    await expect(page.locator('h1')).toHaveText(/Changelog/i);
+    const weeks = page.locator('.week');
+    const n = await weeks.count();
+    console.log(`changelog weeks: ${n}`);
+    expect(n).toBeGreaterThanOrEqual(1);
+    expect.soft(issues.filter(i => i.kind === 'console')).toHaveLength(0);
+  });
+
+  test('changelog.rss serves valid RSS', async ({ request }) => {
+    const r = await request.get('/changelog.rss');
+    expect(r.status()).toBe(200);
+    const text = await r.text();
+    expect(text).toMatch(/<rss/);
+    expect(text).toMatch(/<channel>/);
+    expect(text).toMatch(/<item>/);
+  });
+
+  test('api-docs page renders sections', async ({ page }) => {
+    const issues: Issue[] = [];
+    await visit(page, '/api-docs/', issues);
+    await expect(page.locator('h1')).toHaveText(/REALMS API/i);
+    // Several endpoint sections
+    const eps = page.locator('.ep');
+    expect(await eps.count()).toBeGreaterThan(10);
+    expect.soft(issues.filter(i => i.kind === 'console')).toHaveLength(0);
+  });
+
+  test('short-form permalink /e/{id} redirects', async ({ request }) => {
+    const r = await request.get('/e/1', { maxRedirects: 0 });
+    expect([301, 302]).toContain(r.status());
+    const loc = r.headers()['location'];
+    expect(loc).toMatch(/\/app\/entity\//);
+  });
+
+  test('homepage has integrity + collections sections', async ({ page }) => {
+    const issues: Issue[] = [];
+    await visit(page, '/', issues);
+    // Integrity section heading
+    await expect(page.locator('h2').filter({ hasText: /Integrity/i })).toBeVisible();
+    // Collections section if any exist
+    const colls = page.locator('.coll-grid .coll');
+    const count = await colls.count();
+    console.log(`home collections: ${count}`);
+  });
+
   test('collections list API responds', async ({ request }) => {
     const r = await request.get('/collections/');
     expect(r.status()).toBe(200);

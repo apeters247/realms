@@ -1,0 +1,220 @@
+---
+import Base from '../layouts/Base.astro';
+import Breadcrumb from '../components/Breadcrumb.astro';
+import { url } from '../lib/url';
+---
+<Base
+  title="API"
+  description="Public read-only REST API for the REALMS knowledge base — with examples."
+  canonical="/api-docs"
+>
+  <div class="page">
+    <Breadcrumb items={[{ label: 'API' }]} />
+    <h1>REALMS API</h1>
+    <p class="lede">
+      Public, read-only, CORS-permitted, no API key required. All endpoints
+      return JSON unless otherwise noted. The dataset is licensed
+      <a href="https://creativecommons.org/licenses/by/4.0/" rel="noopener">CC-BY-4.0</a> —
+      reuse with attribution is fine.
+    </p>
+
+    <h2 id="browse">Browse & search</h2>
+
+    <div class="ep">
+      <p class="url"><span class="verb">GET</span> <code>/entities/</code></p>
+      <p>List entities. Filters: <code>type</code>, <code>alignment</code>, <code>realm</code>, <code>culture</code>, <code>region</code>, <code>q</code>, <code>confidence_min</code>. Pagination via <code>page</code> / <code>per_page</code>.</p>
+      <pre>curl 'https://realms.example/entities/?culture=Yoruba&per_page=10'</pre>
+    </div>
+
+    <div class="ep">
+      <p class="url"><span class="verb">GET</span> <code>/entities/{'{'}id{'}'}</code></p>
+      <p>Full detail for one entity: description, sources, relationships (in + out), temporal fields, external IDs.</p>
+      <pre>curl 'https://realms.example/entities/42'</pre>
+    </div>
+
+    <div class="ep">
+      <p class="url"><span class="verb">GET</span> <code>/search/?q=&lt;query&gt;</code></p>
+      <p>Global keyword search across entities, traditions, regions. Exact + trigram fallback.</p>
+      <pre>curl 'https://realms.example/search/?q=orisha'</pre>
+    </div>
+
+    <div class="ep">
+      <p class="url"><span class="verb">GET</span> <code>/search/similar?q=&lt;query&gt;</code></p>
+      <p>Fuzzy-only trigram match — "Xapirip" → Xapiripë.</p>
+    </div>
+
+    <h2 id="graph">Graph</h2>
+
+    <div class="ep">
+      <p class="url"><span class="verb">GET</span> <code>/graph/?max_nodes=200&amp;rel_type=semantic</code></p>
+      <p>Cytoscape-format nodes + edges. <code>rel_type=semantic</code> filters out weak co-occurrence edges. <code>culture</code> filter constrains by tradition.</p>
+    </div>
+
+    <div class="ep">
+      <p class="url"><span class="verb">GET</span> <code>/graph/ego/{'{'}center_id{'}'}?depth=2</code></p>
+      <p>Ego subgraph — BFS from one entity, expand <code>depth</code> hops.</p>
+    </div>
+
+    <h2 id="provenance">Provenance & integrity</h2>
+
+    <div class="ep">
+      <p class="url"><span class="verb">GET</span> <code>/corroboration/{'{'}entity_id{'}'}</code></p>
+      <p>Source breakdown + tier badge (tier_0 stub → tier_3 triangulated).</p>
+    </div>
+
+    <div class="ep">
+      <p class="url"><span class="verb">GET</span> <code>/integrity/stats</code></p>
+      <p>30-day rolling corpus integrity score from the oracle sampler.</p>
+      <pre>curl 'https://realms.example/integrity/stats'</pre>
+    </div>
+
+    <div class="ep">
+      <p class="url"><span class="verb">GET</span> <code>/integrity/recent_audits?limit=10</code></p>
+      <p>Recent oracle-sampling runs with their per-run error rates.</p>
+    </div>
+
+    <h2 id="collections">Collections</h2>
+
+    <div class="ep">
+      <p class="url"><span class="verb">GET</span> <code>/collections/</code></p>
+      <p>Every curated collection with member counts.</p>
+    </div>
+
+    <div class="ep">
+      <p class="url"><span class="verb">GET</span> <code>/collections/{'{'}slug{'}'}</code></p>
+      <p>Full member list for one collection: <code>solar-deities</code>, <code>lunar-deities</code>, <code>death-psychopomps</code>, <code>forest-spirits</code>, <code>water-spirits</code>, <code>household-deities</code>, <code>trickster-gods</code>, <code>ancestor-classes</code>, <code>cryptids-and-creatures</code>, <code>ambiguous-beings</code>.</p>
+    </div>
+
+    <h2 id="export">Export (per-entity citations)</h2>
+
+    <div class="ep">
+      <p class="url"><span class="verb">GET</span> <code>/export/entity/{'{'}id{'}'}.json</code></p>
+      <p>Structured JSON for one entity, including canonical URL.</p>
+    </div>
+
+    <div class="ep">
+      <p class="url"><span class="verb">GET</span> <code>/export/entity/{'{'}id{'}'}.bib</code></p>
+      <p>BibTeX entry suitable for LaTeX bibliographies.</p>
+    </div>
+
+    <div class="ep">
+      <p class="url"><span class="verb">GET</span> <code>/export/entity/{'{'}id{'}'}.csl.json</code></p>
+      <p>CSL-JSON (Zotero, Mendeley, Pandoc).</p>
+    </div>
+
+    <div class="ep">
+      <p class="url"><span class="verb">GET</span> <code>/export/entities.json</code> · <code>/export/entities.csv</code> · <code>/export/relationships.csv</code></p>
+      <p>Full-corpus dumps. Updated nightly. CC-BY-4.0.</p>
+    </div>
+
+    <h2 id="timeline">Timeline</h2>
+
+    <div class="ep">
+      <p class="url"><span class="verb">GET</span> <code>/timeline/summary</code></p>
+      <p>Histogram of entities by century bucket (populated where extractor v4 captured a first-attested year).</p>
+    </div>
+
+    <div class="ep">
+      <p class="url"><span class="verb">GET</span> <code>/timeline/entities?start_year=-2000&amp;end_year=500</code></p>
+      <p>Entities whose first-documented year falls in a range.</p>
+    </div>
+
+    <h2 id="permalinks">Permalinks</h2>
+
+    <div class="ep">
+      <p class="url"><span class="verb">GET</span> <code>/e/{'{'}id{'}'}</code></p>
+      <p>Stable short form → 301 → canonical slug URL. Cite <code>/e/42</code> in papers; the target name can change, the ID cannot.</p>
+    </div>
+
+    <h2 id="feedback">Feedback</h2>
+
+    <div class="ep">
+      <p class="url"><span class="verb">POST</span> <code>/feedback</code></p>
+      <p>Submit an error report. Rate-limited. Issue types: <code>wrong_fact</code>, <code>missing_source</code>, <code>wrong_relationship</code>, <code>missing_relationship</code>, <code>misattribution</code>, <code>ethics</code>, <code>typo</code>, <code>other</code>.</p>
+      <pre>curl -X POST https://realms.example/feedback \
+  -H 'Content-Type: application/json' \
+  -d '{`{`}"entity_id": 42, "issue_type": "missing_source", "message": "Missing PubMed citation for the 12th-century attestation."{`}`}'</pre>
+    </div>
+
+    <h2 id="changelog">Changelog</h2>
+
+    <div class="ep">
+      <p class="url"><span class="verb">GET</span> <code>/changelog/?weeks=26</code></p>
+      <p>Weekly aggregated diffs: new entities, new sources, integrity-audit summaries.</p>
+    </div>
+
+    <div class="ep">
+      <p class="url"><span class="verb">GET</span> <code>/changelog.rss</code></p>
+      <p>Same data as RSS 2.0 feed.</p>
+    </div>
+
+    <h2 id="discovery">Auto-discovery</h2>
+
+    <div class="ep">
+      <p class="url"><span class="verb">GET</span> <code>/docs</code></p>
+      <p>Interactive Swagger UI for every endpoint.</p>
+    </div>
+
+    <div class="ep">
+      <p class="url"><span class="verb">GET</span> <code>/openapi.json</code></p>
+      <p>Machine-readable OpenAPI 3.1 spec.</p>
+    </div>
+
+    <h2 id="rate-limits">Rate limits & etiquette</h2>
+    <ul>
+      <li>100 requests/minute per IP on public read endpoints.</li>
+      <li>20 requests/minute on <code>/graph/</code>, <code>/search/advanced</code>, <code>/export/*</code>.</li>
+      <li>If you need a full corpus mirror for research, please download
+        <a href={url('/export/entities.json')}>entities.json</a> +
+        <a href={url('/export/relationships.csv')}>relationships.csv</a>
+        rather than hammering the per-entity endpoints.</li>
+    </ul>
+
+    <h2 id="attribution">Attribution</h2>
+    <p>Under CC-BY-4.0, include a human-visible line that links back to
+      <code>https://&lt;your-realms-domain&gt;/</code> and credits "REALMS". Machine
+      uses should preserve the <code>realms-entity/1</code> format header in
+      <code>/export/entity/{'{'}id{'}'}.json</code> responses.</p>
+  </div>
+</Base>
+
+<style>
+  h1 { font-size: var(--fs-3xl); font-weight: 450; margin-bottom: var(--sp-3); }
+  .lede { max-width: var(--col-prose); color: var(--ink-dim); line-height: var(--lh-loose); margin-bottom: var(--sp-6); }
+  h2 { font-size: var(--fs-xl); margin-top: var(--sp-7); padding-top: var(--sp-2); border-top: 1px solid var(--rule); }
+  .ep {
+    padding: var(--sp-3) 0;
+    border-bottom: 1px solid var(--rule-soft);
+  }
+  .url { margin: 0 0 var(--sp-2) 0; font-family: var(--font-mono); font-size: var(--fs-sm); }
+  .url .verb {
+    background: var(--accent);
+    color: var(--bg);
+    padding: 1px 6px;
+    border-radius: var(--r-sm);
+    margin-right: 6px;
+    font-weight: 500;
+    font-size: 0.85em;
+  }
+  .ep p { max-width: var(--col-prose); color: var(--ink-dim); margin: 0 0 var(--sp-2) 0; }
+  .ep code {
+    font-family: var(--font-mono);
+    font-size: 0.92em;
+    background: var(--bg-alt);
+    padding: 0 4px;
+    border-radius: var(--r-sm);
+    color: var(--ink);
+  }
+  .ep pre {
+    background: var(--bg-alt);
+    border: 1px solid var(--rule-soft);
+    border-radius: var(--r-sm);
+    padding: var(--sp-2) var(--sp-3);
+    margin: var(--sp-2) 0;
+    overflow-x: auto;
+    font-family: var(--font-mono);
+    font-size: var(--fs-xs);
+    color: var(--ink);
+  }
+  ul { max-width: var(--col-prose); line-height: var(--lh-loose); }
+</style>

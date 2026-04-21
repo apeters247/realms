@@ -14,7 +14,7 @@ from slowapi.errors import RateLimitExceeded
 from slowapi.middleware import SlowAPIMiddleware
 
 from realms.api.rate_limit import limiter
-from realms.api.routes import entities, classes, hierarchy, relationships, cultures, regions, sources, search, stats, metrics, graph, export, review, corroboration, timeline, external_links, integrity, feedback, collections
+from realms.api.routes import entities, classes, hierarchy, relationships, cultures, regions, sources, search, stats, metrics, graph, export, review, corroboration, timeline, external_links, integrity, feedback, collections, changelog
 from realms.api.routes.sources import extractions_router
 
 WEB_DIR = Path(os.getenv("REALMS_WEB_DIR", "/app/web-next/dist"))
@@ -71,6 +71,7 @@ app.include_router(external_links.router, prefix="/external-links", tags=["exter
 app.include_router(integrity.router, prefix="/integrity", tags=["integrity"])
 app.include_router(feedback.router, prefix="/feedback", tags=["feedback"])
 app.include_router(collections.router, prefix="/collections", tags=["collections"])
+app.include_router(changelog.router, prefix="/changelog", tags=["changelog"])
 
 
 if WEB_DIR.exists():
@@ -90,6 +91,24 @@ async def root():
         "docs": "/docs",
         "redoc": "/redoc",
     }
+
+
+@app.get("/e/{entity_id}")
+async def short_permalink(entity_id: int):
+    """Stable short form redirecting to the full entity slug URL.
+
+    Cite `realms.cloud/e/42` in papers; the canonical URL is the longer
+    slug form but this short form will never break.
+    """
+    import re
+    from realms.models import Entity
+    from realms.utils.database import get_db_session
+    with get_db_session() as session:
+        entity = session.get(Entity, entity_id)
+        if entity is None:
+            return RedirectResponse(url="/app/", status_code=302)
+        slug = re.sub(r"[^a-z0-9]+", "-", (entity.name or "").lower()).strip("-")[:80]
+        return RedirectResponse(url=f"/app/entity/{slug}/", status_code=301)
 
 
 @app.get("/api/health")
