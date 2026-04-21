@@ -5,6 +5,8 @@ import csv
 import io
 import json
 import re
+import zipfile
+from datetime import datetime, timezone
 from typing import Iterable
 
 from fastapi import APIRouter, HTTPException, Request
@@ -290,3 +292,194 @@ def _escape_bibtex(s: str) -> str:
              .replace("%", r"\%").replace("&", r"\&")
              .replace("$", r"\$").replace("#", r"\#"))
 
+
+
+# -------------- full dataset dump --------------
+
+_README_BODY = """# REALMS Knowledge Base — Full Dataset Dump
+
+**Generated:** {generated}
+**Entities:** {entities}
+**Relationships:** {relationships}
+**Sources:** {sources}
+**Cultures / traditions:** {cultures}
+**License:** CC-BY-4.0 — reuse with attribution.
+
+## Files in this archive
+
+- ``entities.json`` — every entity with description, alternate names, powers, domains, cultural + geographical associations, temporal fields, external IDs, and consensus confidence.
+- ``entities.csv`` — flat CSV, same data.
+- ``relationships.csv`` — typed + co-occurrence edges.
+- ``cultures.json`` — traditions metadata.
+- ``sources.json`` — source catalogue (Wikipedia, archive.org, PubMed) with URLs, DOIs, fetch timestamps.
+- ``LICENSE.txt`` — CC-BY-4.0 text.
+- ``CITATION.cff`` — machine-readable citation format.
+
+## Attribution
+
+```
+REALMS — Research Entity Archive for Light and Metaphysical Spirit Hierarchies.
+{generated}. https://realms.cloud/. Licensed CC-BY-4.0.
+```
+
+## How the data is built
+
+See https://<your-realms-domain>/about/methodology/ for the four-stage
+extraction + verification pipeline. Every field in ``entities.json`` has
+at least one source quote backing it (visible on the entity page);
+corpus-level integrity is measured nightly by an independent oracle
+sampler and published at ``/integrity/stats``.
+
+## Scope
+
+- **Tier 1 (classical religious + indigenous traditions)** — deities,
+  orishas, kami, yakshas, angels, spirits, ancestors.
+- **Tier 2 (regional folklore + culturally-attested cryptids)** —
+  wendigo, leshy, aswang, kelpie, chullachaqui, kitsune, and kin.
+
+Tier 3 (modern entheogenic visionary) and Tier 4 (modern occult /
+fiction / UFO-adjacent) content is explicitly excluded.
+"""
+
+
+_CITATION_CFF = """cff-version: 1.2.0
+message: "If you use REALMS in your work, please cite it."
+title: "REALMS — Research Entity Archive for Light and Metaphysical Spirit Hierarchies"
+type: dataset
+url: "https://realms.cloud/"
+license: CC-BY-4.0
+"""
+
+
+_LICENSE = """Creative Commons Attribution 4.0 International (CC-BY-4.0)
+
+You are free to:
+  Share — copy and redistribute the material in any medium or format
+  Adapt — remix, transform, and build upon the material for any purpose, even commercially.
+
+Under the following terms:
+  Attribution — You must give appropriate credit, provide a link to the license,
+  and indicate if changes were made.
+
+Full text: https://creativecommons.org/licenses/by/4.0/legalcode
+"""
+
+
+@router.get("/dataset.zip")
+async def export_dataset_zip():
+    """Streaming ZIP of the entire public corpus.
+
+    Generated on-demand (no server cache yet). For a 2000-entity corpus
+    the zip is ~5MB; for 10k entities, ~25MB. If this grows too large
+    we'll add a nightly pre-built cache, but on-demand is fine at
+    launch scale.
+    """
+    with get_db_session() as session:
+        entities = session.execute(select(Entity).order_by(Entity.id)).scalars().all()
+        rels = session.execute(
+            select(EntityRelationship).order_by(EntityRelationship.id)
+        ).scalars().all()
+        cultures = session.execute(select(Culture).order_by(Culture.id)).scalars().all()
+        sources = session.execute(
+            select(IngestionSource).order_by(IngestionSource.id)
+        ).scalars().all()
+
+        entities_json = [
+            {
+                "id": e.id, "name": e.name, "entity_type": e.entity_type,
+                "alignment": e.alignment, "realm": e.realm,
+                "description": e.description,
+                "alternate_names": e.alternate_names or {},
+                "powers": e.powers or [], "domains": e.domains or [],
+                "cultural_associations": e.cultural_associations or [],
+                "geographical_associations": e.geographical_associations or [],
+                "external_ids": e.external_ids or {},
+                "first_documented_year": e.first_documented_year,
+                "evidence_period_start": e.evidence_period_start,
+                "evidence_period_end": e.evidence_period_end,
+                "consensus_confidence": float(e.consensus_confidence or 0.0),
+                "provenance_sources": e.provenance_sources or [],
+            }
+            for e in entities
+        ]
+
+        rels_csv = io.StringIO()
+        cw = csv.writer(rels_csv, quoting=csv.QUOTE_MINIMAL)
+        cw.writerow(["id", "source_entity_id", "target_entity_id",
+                     "relationship_type", "description", "strength",
+                     "confidence"])
+        for r in rels:
+            cw.writerow([r.id, r.source_entity_id, r.target_entity_id,
+                         r.relationship_type, _jsonify(r.description),
+                         r.strength or "",
+                         r.extraction_confidence or ""])
+
+        cultures_json = [
+            {"id": c.id, "name": c.name, "region": c.region,
+             "language_family": c.language_family,
+             "tradition_type": c.tradition_type,
+             "description": c.description}
+            for c in cultures
+        ]
+
+        sources_json = [
+            {"id": s.id, "source_type": s.source_type,
+             "source_name": s.source_name,
+             "url": s.url, "doi": s.doi,
+             "peer_reviewed": bool(s.peer_reviewed),
+             "credibility_score": float(s.credibility_score or 0.0),
+             "ingestion_status": s.ingestion_status,
+             "processed_at": s.processed_at.isoformat() if s.processed_at else None}
+            for s in sources
+        ]
+
+        ent_csv = io.StringIO()
+        cw2 = csv.writer(ent_csv, quoting=csv.QUOTE_MINIMAL)
+        cw2.writerow(["id", "name", "entity_type", "alignment", "realm",
+                      "description", "cultural_associations",
+                      "geographical_associations", "consensus_confidence",
+                      "first_documented_year"])
+        for e in entities_json:
+            cw2.writerow([
+                e["id"], e["name"], e["entity_type"] or "",
+                e["alignment"] or "", e["realm"] or "",
+                (e["description"] or "").replace("\n", " "),
+                _jsonify(e["cultural_associations"]),
+                _jsonify(e["geographical_associations"]),
+                e["consensus_confidence"],
+                e["first_documented_year"] or "",
+            ])
+
+    generated = datetime.now(timezone.utc).isoformat()
+    readme = _README_BODY.format(
+        generated=generated,
+        entities=len(entities),
+        relationships=len(rels),
+        sources=len(sources),
+        cultures=len(cultures),
+    )
+
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED, compresslevel=9) as zf:
+        zf.writestr("README.md", readme)
+        zf.writestr("LICENSE.txt", _LICENSE)
+        zf.writestr("CITATION.cff", _CITATION_CFF)
+        zf.writestr("entities.json",
+                    json.dumps(entities_json, ensure_ascii=False, indent=2))
+        zf.writestr("entities.csv", ent_csv.getvalue())
+        zf.writestr("relationships.csv", rels_csv.getvalue())
+        zf.writestr("cultures.json",
+                    json.dumps(cultures_json, ensure_ascii=False, indent=2))
+        zf.writestr("sources.json",
+                    json.dumps(sources_json, ensure_ascii=False, indent=2))
+
+    buf.seek(0)
+    stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M")
+    return Response(
+        content=buf.read(),
+        media_type="application/zip",
+        headers={
+            "Content-Disposition": f'attachment; filename="realms-{stamp}.zip"',
+            "Cache-Control": "public, max-age=3600",
+        },
+    )

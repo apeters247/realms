@@ -91,11 +91,20 @@
 
       // Destroy previous instance
       container.innerHTML = '';
+      // Performance: at 500+ nodes the 'cose' layout gets slow; switch to
+      // a faster force-directed preset and disable animation.
+      const useFast = nodes.length > 400;
+
       const cy = cytoscape({
         container,
         elements: [...nodes, ...edges],
-        minZoom: 0.2,
+        minZoom: 0.1,
         maxZoom: 3,
+        // Turn off motion blur, wheel sensitivity, and hide-on-zoom tricks.
+        textureOnViewport: true,
+        motionBlur: false,
+        hideEdgesOnViewport: useFast,
+        pixelRatio: 1,
         style: [
           {
             selector: 'node',
@@ -140,14 +149,23 @@
             },
           },
         ],
-        layout: {
-          name: 'cose',
-          animate: false,
-          padding: 20,
-          nodeRepulsion: () => 3600,
-          idealEdgeLength: () => 80,
-          numIter: 1500,
-        },
+        layout: useFast
+          ? {
+              name: 'concentric',
+              animate: false,
+              padding: 30,
+              minNodeSpacing: 12,
+              concentric: (node: any) => Number(node.data('confidence') ?? 0),
+              levelWidth: () => 1,
+            }
+          : {
+              name: 'cose',
+              animate: false,
+              padding: 20,
+              nodeRepulsion: () => 3600,
+              idealEdgeLength: () => 80,
+              numIter: 1200,
+            },
       });
 
       cy.on('tap', 'node', async (evt) => {

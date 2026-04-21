@@ -8,6 +8,7 @@ import EntityGraph from '../../islands/EntityGraph.svelte';
 import HoverPreview from '../../islands/HoverPreview.svelte';
 import CiteModal from '../../islands/CiteModal.svelte';
 import FeedbackForm from '../../islands/FeedbackForm.svelte';
+import SwipeNav from '../../islands/SwipeNav.svelte';
 import { loadSnapshot, loadEntityDetail } from '../../lib/loader';
 import { api } from '../../lib/api';
 import { entityJsonLd, breadcrumbJsonLd } from '../../lib/jsonld';
@@ -86,6 +87,15 @@ const directedBacklinks = (entity?.relationships
   ? Object.values(entity.relationships).flat().filter(r => r.direction === 'in')
   : []
 ) as Array<{ entity_id: number; entity_name: string | null }>;
+
+// Prev / next navigation — walks the snapshot in ID order so swipe works
+// deterministically. Skip self; guard start/end.
+const allIds = snap.entities.map(e => e.id).sort((a, b) => a - b);
+const myIdx = allIds.indexOf(id);
+const prevId = myIdx > 0 ? allIds[myIdx - 1] : null;
+const nextId = myIdx >= 0 && myIdx < allIds.length - 1 ? allIds[myIdx + 1] : null;
+const prevHref = prevId != null ? `/entity/${snap.entitySlugById[prevId]}/` : null;
+const nextHref = nextId != null ? `/entity/${snap.entitySlugById[nextId]}/` : null;
 
 // Additionally look across the full snapshot for any entity whose name appears
 // in *our* cultural_associations or whose description mentions us — skipped
@@ -213,6 +223,8 @@ const directedBacklinks = (entity?.relationships
         <CiteModal client:load entityId={id} entityName={entity?.name ?? summary.name} />
         <FeedbackForm client:load entityId={id} entityName={entity?.name ?? summary.name} />
       </section>
+
+      <SwipeNav client:idle prevHref={prevHref} nextHref={nextHref} />
     </div>
 
     <aside class="sidenotes" aria-label="Entity attributes">

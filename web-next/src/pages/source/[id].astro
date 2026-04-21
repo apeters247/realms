@@ -34,8 +34,8 @@ export async function getStaticPaths() {
   let sources: Array<{ id: number }> = [];
   try {
     sources = await apiAll<{ id: number }>('/sources/', 100);
-  } catch {
-    /* tolerate build without API */
+  } catch (err) {
+    console.warn(`[source/[id]] getStaticPaths failed:`, err);
   }
   return sources.map(s => ({ params: { id: String(s.id) }, props: { id: s.id } }));
 }

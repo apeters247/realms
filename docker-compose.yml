@@ -50,6 +50,9 @@ services:
       HOST: 0.0.0.0
       PORT: 8001
       LOG_LEVEL: ${LOG_LEVEL:-info}
+      # 600/min works for the SSG build loop that hits ~65 paginated pages
+      # back-to-back. Cloudflare handles real abuse protection in front.
+      REALMS_RATE_LIMIT_PER_MINUTE: ${REALMS_RATE_LIMIT_PER_MINUTE:-600}
     volumes:
       - ./realms:/app/realms
       - ./scripts:/app/scripts
@@ -136,6 +139,80 @@ services:
       # Use Gemini Flash as primary for the second instance — cheaper,
       # faster, for bulk coverage. Claude Sonnet remains on instance 1
       # for higher-quality extraction on saints/Marian apparitions.
+      REALMS_EXTRACTION_MODEL: google/gemini-2.0-flash-001
+      REALMS_EXTRACTION_FALLBACK_MODELS: deepseek/deepseek-chat
+    volumes:
+      - ./realms:/app/realms
+      - ./scripts:/app/scripts
+      - realms-raw-cache:/app/data/raw
+      - realms-pubmed-cache:/app/data/pubmed
+      - realms-archive-cache:/app/data/archive_org
+    command: ["python", "-m", "scripts.run_ingestor"]
+    healthcheck:
+      test: ["CMD", "python", "-c", "import os, sys; sys.exit(0 if os.path.exists('/proc/1/status') else 1)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    restart: unless-stopped
+    networks:
+      - estimabio-network
+
+  realms-ingestor-3:
+    image: realms:latest
+    container_name: realms-ingestor-3
+    depends_on:
+      realms-api:
+        condition: service_healthy
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "5" }
+    deploy:
+      resources:
+        limits: { cpus: '1.5', memory: '1g' }
+    environment:
+      <<: *common-env
+      REALMS_INGESTOR_POLL_INTERVAL: "20"
+      REALMS_INGESTOR_IDLE_SLEEP: "60"
+      REALMS_INGESTOR_MAX_CHUNKS: "8"
+      REALMS_INGESTOR_CHUNK_CONCURRENCY: "4"
+      REALMS_EXTRACTION_MODEL: google/gemini-2.0-flash-001
+      REALMS_EXTRACTION_FALLBACK_MODELS: deepseek/deepseek-chat
+    volumes:
+      - ./realms:/app/realms
+      - ./scripts:/app/scripts
+      - realms-raw-cache:/app/data/raw
+      - realms-pubmed-cache:/app/data/pubmed
+      - realms-archive-cache:/app/data/archive_org
+    command: ["python", "-m", "scripts.run_ingestor"]
+    healthcheck:
+      test: ["CMD", "python", "-c", "import os, sys; sys.exit(0 if os.path.exists('/proc/1/status') else 1)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    restart: unless-stopped
+    networks:
+      - estimabio-network
+
+  realms-ingestor-4:
+    image: realms:latest
+    container_name: realms-ingestor-4
+    depends_on:
+      realms-api:
+        condition: service_healthy
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "5" }
+    deploy:
+      resources:
+        limits: { cpus: '1.5', memory: '1g' }
+    environment:
+      <<: *common-env
+      REALMS_INGESTOR_POLL_INTERVAL: "20"
+      REALMS_INGESTOR_IDLE_SLEEP: "60"
+      REALMS_INGESTOR_MAX_CHUNKS: "8"
+      REALMS_INGESTOR_CHUNK_CONCURRENCY: "4"
       REALMS_EXTRACTION_MODEL: google/gemini-2.0-flash-001
       REALMS_EXTRACTION_FALLBACK_MODELS: deepseek/deepseek-chat
     volumes:
