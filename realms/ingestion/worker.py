@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import logging
 import os
+import re
 import signal
 import time
 from dataclasses import asdict
@@ -156,6 +157,88 @@ def _dispatch_fetch(source: IngestionSource) -> FetchedDocument:
     return fetch_wikipedia(url)
 
 
+# High-signal religion/mythology keywords. Kept short and specific so
+# that general-interest Britannica articles (biography, geography,
+# botany, politics, physics, …) don't slip through. Words like
+# "tradition" and "sacred" are too generic — they can appear in any
+# humanities prose — so they're excluded.
+_REL_KEYWORDS = {
+    "god ", "gods ", "goddess", "deity", "deities", "divine",
+    "pantheon", "mythology", "mythological",
+    " myth ", " myths ", "mythic",
+    " cult ", " cults ", "cultic",
+    "worship", "worshipped", "worshiped", "worshipper",
+    "temple", "shrine", "sanctuary",
+    "oracle", "prophet", "prophecy",
+    "priest", "priestess", "shaman", "druid",
+    "demon", "demonic",
+    " angel ", " angels ", "archangel",
+    " saint ", " saints ", "canonization", "beatified",
+    "messiah", "avatar", "incarnation", "manifestation",
+    "apparition", "our lady",
+    "spirit of", "spirit-being", "ancestral spirit", "nature spirit",
+    "water spirit", "forest spirit", "tutelary",
+    "monster", "cryptid", "legendary creature", "mythic beast",
+    "folklore", "folktale",
+    "underworld", "afterlife", " heaven", " hell",
+    "animism", "animist", "totem",
+    "divination", "sorcery", "witchcraft",
+    "psychopomp", "thunder god", "sea god",
+    "nymph", "faun", "satyr", "dragon", "titan", "djinn", "jinn", "ghoul",
+    "orisha", "kami", "yaksha", "bodhisattva", "loa",
+    "syncretism", "syncretized", "pagan", "paganism",
+}
+
+# Title patterns that indicate biographical (non-entity) Britannica articles.
+# Example: "Airey, Richard Airey", "Ainger, Alfred", "Aimard, Gustave".
+# A surname-first comma pattern with an ordinary given name = biography,
+# unless the name is clearly saintly ("Saint X" or "Our Lady of Y").
+_BIOGRAPHICAL_TITLE_RE = re.compile(
+    r"^[A-Z][a-zA-Zàâäéèêëîïôöùûüç'-]{2,},\s+[A-Z]",
+)
+
+def _looks_biographical(title: str) -> bool:
+    if not title:
+        return False
+    # Strip encyclopedia suffix from seed names like "Airey (Britannica, 1911)".
+    t = re.sub(r"\s*\([^)]+(Encyclopedia|Encyclopædia|Dictionary)[^)]*\)\s*$",
+               "", title)
+    if not _BIOGRAPHICAL_TITLE_RE.match(t):
+        return False
+    # Allow hagiography through.
+    lower = t.lower()
+    if any(tok in lower for tok in ("saint ", "st.", "blessed ", "holy ",
+                                     "our lady", "virgin mary", "pope ")):
+        return False
+    return True
+
+
+def _is_out_of_scope(title: str, text: str) -> bool:
+    """Quick relevance heuristic to skip non-entity Britannica/Wikisource pages.
+
+    Two-pass check:
+      1. Title pattern — biographical "Lastname, Firstname" titles skip
+         unless the name is clearly religious.
+      2. Keyword sniff — the first ~3000 chars must contain at least one
+         high-signal religion/mythology keyword.
+    """
+    if not text:
+        return True
+    if _looks_biographical(title):
+        return True
+    # Only gate substantial pages. Tiny stub pages fall through and let
+    # the LLM decide — cheaply.
+    if len(text) < 400:
+        return False
+    sample = text[:3000].lower()
+    title_l = (title or "").lower()
+    haystack = " " + title_l + " " + sample + " "
+    for kw in _REL_KEYWORDS:
+        if kw in haystack:
+            return False
+    return True
+
+
 def _process_source(session: Session, source: IngestionSource) -> tuple[int, int]:
     """Fetch -> chunk -> extract -> normalize. Returns (n_extractions, n_entities)."""
     if not source.url:
@@ -169,6 +252,17 @@ def _process_source(session: Session, source: IngestionSource) -> tuple[int, int
     source.storage_path = fetched.storage_path
     source.language = fetched.language
     session.flush()
+
+    # Relevance pre-filter. Many scholarly-encyclopedia seeds (Britannica
+    # 1911 "Aidin", "Ailanthus", biography articles) have no entity content.
+    # Skip LLM cost for them by scanning for at least one religion/mythology
+    # keyword in the fetched text.
+    if _is_out_of_scope(fetched.title, fetched.content_text):
+        log.info(
+            "[source=%d] skipped — no religion/mythology keywords in text (title=%r)",
+            source.id, fetched.title,
+        )
+        return (0, 0)
 
     chunks = chunk_text(fetched.content_text)
     log.info("[source=%d] %d chunks", source.id, len(chunks))

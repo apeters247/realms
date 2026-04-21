@@ -97,7 +97,7 @@ services:
       # Keep concurrency low and rely on the multi-model fallback chain.
       REALMS_INGESTOR_CHUNK_CONCURRENCY: "2"
       REALMS_EXTRACTION_MODEL: nvidia/nemotron-3-super-120b-a12b:free
-      REALMS_EXTRACTION_FALLBACK_MODELS: openai/gpt-oss-120b:free,z-ai/glm-4.5-air:free
+      REALMS_EXTRACTION_FALLBACK_MODELS: openai/gpt-oss-120b:free,google/gemma-4-26b-a4b-it:free,nvidia/nemotron-3-nano-30b-a3b:free,openai/gpt-oss-20b:free
     volumes:
       - ./realms:/app/realms
       - ./scripts:/app/scripts
@@ -142,7 +142,7 @@ services:
       # Free-tier models; different lead so the 4 workers don't all hit
       # the same model's rate limit simultaneously.
       REALMS_EXTRACTION_MODEL: openai/gpt-oss-120b:free
-      REALMS_EXTRACTION_FALLBACK_MODELS: nvidia/nemotron-3-super-120b-a12b:free,z-ai/glm-4.5-air:free
+      REALMS_EXTRACTION_FALLBACK_MODELS: nvidia/nemotron-3-super-120b-a12b:free,google/gemma-4-26b-a4b-it:free,openai/gpt-oss-20b:free,nvidia/nemotron-3-nano-30b-a3b:free
     volumes:
       - ./realms:/app/realms
       - ./scripts:/app/scripts
@@ -178,8 +178,8 @@ services:
       REALMS_INGESTOR_IDLE_SLEEP: "60"
       REALMS_INGESTOR_MAX_CHUNKS: "8"
       REALMS_INGESTOR_CHUNK_CONCURRENCY: "2"
-      REALMS_EXTRACTION_MODEL: z-ai/glm-4.5-air:free
-      REALMS_EXTRACTION_FALLBACK_MODELS: nvidia/nemotron-3-super-120b-a12b:free,openai/gpt-oss-120b:free
+      REALMS_EXTRACTION_MODEL: openai/gpt-oss-20b:free
+      REALMS_EXTRACTION_FALLBACK_MODELS: nvidia/nemotron-3-nano-30b-a3b:free,inclusionai/ling-2.6-flash:free,openai/gpt-oss-120b:free,nvidia/nemotron-3-super-120b-a12b:free
     volumes:
       - ./realms:/app/realms
       - ./scripts:/app/scripts
@@ -216,7 +216,7 @@ services:
       REALMS_INGESTOR_MAX_CHUNKS: "8"
       REALMS_INGESTOR_CHUNK_CONCURRENCY: "2"
       REALMS_EXTRACTION_MODEL: nvidia/nemotron-3-super-120b-a12b:free
-      REALMS_EXTRACTION_FALLBACK_MODELS: openai/gpt-oss-120b:free,z-ai/glm-4.5-air:free
+      REALMS_EXTRACTION_FALLBACK_MODELS: google/gemma-4-26b-a4b-it:free,openai/gpt-oss-120b:free,nvidia/nemotron-3-nano-30b-a3b:free,inclusionai/ling-2.6-flash:free
     volumes:
       - ./realms:/app/realms
       - ./scripts:/app/scripts
