@@ -93,9 +93,11 @@ services:
       REALMS_INGESTOR_POLL_INTERVAL: "20"
       REALMS_INGESTOR_IDLE_SLEEP: "60"
       REALMS_INGESTOR_MAX_CHUNKS: "8"
-      REALMS_INGESTOR_CHUNK_CONCURRENCY: "4"
-      REALMS_EXTRACTION_MODEL: ${REALMS_EXTRACTION_MODEL:-anthropic/claude-sonnet-4.5}
-      REALMS_EXTRACTION_FALLBACK_MODELS: ${REALMS_EXTRACTION_FALLBACK_MODELS:-deepseek/deepseek-chat,google/gemini-2.0-flash-001}
+      # Free-tier OpenRouter models are rate-limited (~20 req/min each).
+      # Keep concurrency low and rely on the multi-model fallback chain.
+      REALMS_INGESTOR_CHUNK_CONCURRENCY: "2"
+      REALMS_EXTRACTION_MODEL: nvidia/nemotron-3-super-120b-a12b:free
+      REALMS_EXTRACTION_FALLBACK_MODELS: openai/gpt-oss-120b:free,z-ai/glm-4.5-air:free
     volumes:
       - ./realms:/app/realms
       - ./scripts:/app/scripts
@@ -136,12 +138,11 @@ services:
       REALMS_INGESTOR_POLL_INTERVAL: "20"
       REALMS_INGESTOR_IDLE_SLEEP: "60"
       REALMS_INGESTOR_MAX_CHUNKS: "8"
-      REALMS_INGESTOR_CHUNK_CONCURRENCY: "4"
-      # Use Gemini Flash as primary for the second instance — cheaper,
-      # faster, for bulk coverage. Claude Sonnet remains on instance 1
-      # for higher-quality extraction on saints/Marian apparitions.
-      REALMS_EXTRACTION_MODEL: google/gemini-2.0-flash-001
-      REALMS_EXTRACTION_FALLBACK_MODELS: deepseek/deepseek-chat
+      REALMS_INGESTOR_CHUNK_CONCURRENCY: "2"
+      # Free-tier models; different lead so the 4 workers don't all hit
+      # the same model's rate limit simultaneously.
+      REALMS_EXTRACTION_MODEL: openai/gpt-oss-120b:free
+      REALMS_EXTRACTION_FALLBACK_MODELS: nvidia/nemotron-3-super-120b-a12b:free,z-ai/glm-4.5-air:free
     volumes:
       - ./realms:/app/realms
       - ./scripts:/app/scripts
@@ -176,9 +177,9 @@ services:
       REALMS_INGESTOR_POLL_INTERVAL: "20"
       REALMS_INGESTOR_IDLE_SLEEP: "60"
       REALMS_INGESTOR_MAX_CHUNKS: "8"
-      REALMS_INGESTOR_CHUNK_CONCURRENCY: "4"
-      REALMS_EXTRACTION_MODEL: google/gemini-2.0-flash-001
-      REALMS_EXTRACTION_FALLBACK_MODELS: deepseek/deepseek-chat
+      REALMS_INGESTOR_CHUNK_CONCURRENCY: "2"
+      REALMS_EXTRACTION_MODEL: z-ai/glm-4.5-air:free
+      REALMS_EXTRACTION_FALLBACK_MODELS: nvidia/nemotron-3-super-120b-a12b:free,openai/gpt-oss-120b:free
     volumes:
       - ./realms:/app/realms
       - ./scripts:/app/scripts
@@ -213,9 +214,9 @@ services:
       REALMS_INGESTOR_POLL_INTERVAL: "20"
       REALMS_INGESTOR_IDLE_SLEEP: "60"
       REALMS_INGESTOR_MAX_CHUNKS: "8"
-      REALMS_INGESTOR_CHUNK_CONCURRENCY: "4"
-      REALMS_EXTRACTION_MODEL: google/gemini-2.0-flash-001
-      REALMS_EXTRACTION_FALLBACK_MODELS: deepseek/deepseek-chat
+      REALMS_INGESTOR_CHUNK_CONCURRENCY: "2"
+      REALMS_EXTRACTION_MODEL: nvidia/nemotron-3-super-120b-a12b:free
+      REALMS_EXTRACTION_FALLBACK_MODELS: openai/gpt-oss-120b:free,z-ai/glm-4.5-air:free
     volumes:
       - ./realms:/app/realms
       - ./scripts:/app/scripts

@@ -12,13 +12,13 @@ import time
 from dataclasses import asdict
 from datetime import datetime, timedelta, timezone
 
-from sqlalchemy import select, update
+from sqlalchemy import case, select, update
 from sqlalchemy.orm import Session
 
 from realms.ingestion.archive_fetcher import fetch_archive
 from realms.ingestion.chunker import chunk_text
 from realms.ingestion.extractor import PROMPT_VERSION, ROLE_FIELDS, extract_entities
-from realms.ingestion.fetcher import FetchedDocument, fetch_wikipedia
+from realms.ingestion.fetcher import FetchedDocument, fetch_html, fetch_wikipedia, fetch_wikisource
 from realms.ingestion.integrity_gate import Action, run_gate
 from realms.ingestion.normalizer import _find_existing, _normalize_name, upsert_entities
 from realms.ingestion.promote_dimensions import promote_all
@@ -73,11 +73,34 @@ def _install_signal_handlers() -> None:
 
 
 def _claim_next_source(session: Session) -> IngestionSource | None:
-    """Atomically move one pending source to 'processing' and return it."""
+    """Atomically move one pending source to 'processing' and return it.
+
+    Priority policy:
+      1. source_type rank (encyclopedia > wikipedia > primary_source > journal > other).
+         Journals go last because many URLs are paywalled landing pages or
+         PDF redirects that fail fetch; we pick them up only after the
+         reliably-fetchable sources drain.
+      2. credibility_score desc as a tiebreaker.
+      3. id asc as the final deterministic tiebreaker.
+    """
+    type_rank = case(
+        (IngestionSource.source_type == "encyclopedia", 1),
+        (IngestionSource.source_type == "wikipedia", 2),
+        (IngestionSource.source_type == "archive_org", 3),
+        (IngestionSource.source_type == "primary_source", 4),
+        (IngestionSource.source_type == "book", 5),
+        (IngestionSource.source_type == "pubmed", 6),
+        (IngestionSource.source_type == "journal", 7),
+        else_=8,
+    )
     source = session.execute(
         select(IngestionSource)
         .where(IngestionSource.ingestion_status == "pending")
-        .order_by(IngestionSource.id.asc())
+        .order_by(
+            type_rank.asc(),
+            IngestionSource.credibility_score.desc().nulls_last(),
+            IngestionSource.id.asc(),
+        )
         .limit(1)
         .with_for_update(skip_locked=True)
     ).scalar_one_or_none()
@@ -90,14 +113,47 @@ def _claim_next_source(session: Session) -> IngestionSource | None:
 
 
 def _dispatch_fetch(source: IngestionSource) -> FetchedDocument:
-    """Route the fetch call by source_type. Wikipedia is the legacy default."""
+    """Route the fetch call by source_type + URL host.
+
+    - ``pubmed`` → NCBI E-utilities
+    - ``archive_org`` / ``archive.org`` → Internet Archive scholar fetcher
+    - ``wikipedia`` (or legacy unknown) with wikipedia.org URL → MediaWiki extract
+    - ``encyclopedia`` with wikisource.org URL → Wikisource extract
+    - Any other HTTP(S) URL → generic HTML fetcher (theoi, perseus, journal
+      landing pages, newadvent, archive.org non-details, etc.)
+    """
     stype = (source.source_type or "wikipedia").lower()
+    url = source.url or ""
+    host = url.split("/", 3)[2].lower() if "://" in url else ""
+
     if stype == "pubmed":
-        return fetch_pubmed(source.url)
+        return fetch_pubmed(url)
     if stype in ("archive_org", "archive.org", "archive"):
-        return fetch_archive(source.url)
-    # Treat unknown / legacy types as Wikipedia — preserves existing seeds.
-    return fetch_wikipedia(source.url)
+        return fetch_archive(url)
+
+    # Host-based routing catches Wikisource-hosted encyclopedias regardless
+    # of how they were typed at seed time.
+    if "wikisource.org" in host:
+        return fetch_wikisource(url)
+    if "wikipedia.org" in host:
+        return fetch_wikipedia(url)
+
+    # Journal / primary_source / anything else with an HTTP URL.
+    if url.startswith(("http://", "https://")):
+        # Skip binary formats we can't parse. Detect from extension OR from
+        # path tokens (many journal landing pages live at .../pdf/<id>).
+        lower = url.lower().split("?", 1)[0]
+        if (lower.endswith((".pdf", ".epub", ".mobi", ".djvu", ".ps", ".gz", ".zip"))
+                or "/pdf/" in lower
+                or "/download" in lower
+                or "/fulltext" in lower):
+            raise RuntimeError(
+                f"binary / PDF-only endpoint, skipping {url}"
+            )
+        return fetch_html(url)
+
+    # Legacy fallback — the old behaviour.
+    return fetch_wikipedia(url)
 
 
 def _process_source(session: Session, source: IngestionSource) -> tuple[int, int]:

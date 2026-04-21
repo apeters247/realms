@@ -110,3 +110,119 @@ def fetch_wikipedia(url: str, cache_dir: Path = DEFAULT_CACHE_DIR) -> FetchedDoc
         storage_path=str(cache_path),
         language=lang,
     )
+
+
+# ─── Wikisource (MediaWiki API, different host) ─────────────────────────
+
+def _wikisource_title_from_url(url: str) -> Optional[str]:
+    parsed = urlparse(url)
+    if "wikisource.org" not in parsed.netloc:
+        return None
+    m = re.match(r"^/wiki/(.+)$", parsed.path)
+    return unquote(m.group(1)) if m else None
+
+
+def _wikisource_plaintext(lang: str, title: str) -> str:
+    """Same REST extract API as Wikipedia, different host."""
+    resp = requests.get(
+        f"https://{lang}.wikisource.org/w/api.php",
+        params={
+            "action": "query", "format": "json", "prop": "extracts",
+            "explaintext": "1", "redirects": "1", "titles": title,
+        },
+        headers={"User-Agent": USER_AGENT},
+        timeout=60,
+    )
+    resp.raise_for_status()
+    data = resp.json()
+    for _pid, page in data.get("query", {}).get("pages", {}).items():
+        if "missing" in page:
+            raise LookupError(f"Wikisource title missing: {title}")
+        extract = page.get("extract")
+        if extract:
+            return extract
+    raise LookupError(f"Wikisource returned no extract for: {title}")
+
+
+def fetch_wikisource(url: str, cache_dir: Path = DEFAULT_CACHE_DIR) -> FetchedDocument:
+    title = _wikisource_title_from_url(url)
+    if title is None:
+        raise ValueError(f"Not a Wikisource URL: {url}")
+    lang_match = re.match(r"https?://([a-z]{2})\.wikisource\.org", url)
+    lang = lang_match.group(1) if lang_match else "en"
+    cache_dir.mkdir(parents=True, exist_ok=True)
+    cache_key = hashlib.sha256(url.encode("utf-8")).hexdigest()
+    cache_path = cache_dir / f"{cache_key}.txt"
+    if cache_path.exists():
+        content_text = cache_path.read_text(encoding="utf-8")
+    else:
+        log.info("Fetching (wikisource) %s", url)
+        content_text = _wikisource_plaintext(lang, title)
+        if not content_text.strip():
+            raise RuntimeError(f"Empty content for {url}")
+        cache_path.write_text(content_text, encoding="utf-8")
+    content_hash = hashlib.sha256(content_text.encode("utf-8")).hexdigest()
+    return FetchedDocument(
+        url=url,
+        title=title.split("/")[-1].replace("_", " "),
+        content_text=content_text,
+        content_hash=content_hash,
+        storage_path=str(cache_path),
+        language=lang,
+    )
+
+
+# ─── Generic HTML fetcher (for theoi, perseus, archive.org, journal landing) ─
+
+def fetch_html(url: str, cache_dir: Path = DEFAULT_CACHE_DIR) -> FetchedDocument:
+    """Strip HTML → text. Works for any static page."""
+    try:
+        from bs4 import BeautifulSoup  # part of realms deps
+    except ImportError as exc:
+        raise RuntimeError("beautifulsoup4 required for fetch_html") from exc
+
+    cache_dir.mkdir(parents=True, exist_ok=True)
+    cache_key = hashlib.sha256(url.encode("utf-8")).hexdigest()
+    cache_path = cache_dir / f"{cache_key}.txt"
+    if cache_path.exists():
+        content_text = cache_path.read_text(encoding="utf-8")
+        title_line = content_text.split("\n", 1)[0]
+        title = title_line.lstrip("# ").strip() or url
+    else:
+        log.info("Fetching (html) %s", url)
+        resp = requests.get(
+            url, headers={"User-Agent": USER_AGENT},
+            timeout=60, allow_redirects=True,
+        )
+        resp.raise_for_status()
+        soup = BeautifulSoup(resp.text, "html.parser")
+
+        # Strip scripts, styles, navs — keep the body of the article.
+        for tag in soup(["script", "style", "nav", "footer", "header", "aside"]):
+            tag.decompose()
+
+        title_el = soup.find("title") or soup.find("h1")
+        title = (title_el.get_text(strip=True) if title_el else url)[:200]
+
+        main = (
+            soup.find("article")
+            or soup.find("main")
+            or soup.find(id=re.compile(r"mw-content-text|main|content", re.I))
+            or soup.body
+        )
+        text = (main or soup).get_text(separator="\n", strip=True)
+        text = re.sub(r"\n{3,}", "\n\n", text)
+        if len(text) < 200:
+            raise RuntimeError(f"Empty / too-short HTML for {url} ({len(text)} chars)")
+        content_text = f"# {title}\n\n{text}"
+        cache_path.write_text(content_text, encoding="utf-8")
+
+    content_hash = hashlib.sha256(content_text.encode("utf-8")).hexdigest()
+    return FetchedDocument(
+        url=url,
+        title=title,
+        content_text=content_text,
+        content_hash=content_hash,
+        storage_path=str(cache_path),
+        language="en",
+    )
