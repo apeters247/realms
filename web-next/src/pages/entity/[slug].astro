@@ -96,6 +96,7 @@ const directedBacklinks = (entity?.relationships
   title={entity?.name ?? summary.name}
   description={(entity?.description ?? summary.description ?? '').slice(0, 200)}
   canonical={canonicalPath}
+  ogImage={`/og/entity/${id}.png`}
   jsonLd={jsonLd}
 >
   <HoverPreview client:idle />

@@ -14,7 +14,7 @@ from slowapi.errors import RateLimitExceeded
 from slowapi.middleware import SlowAPIMiddleware
 
 from realms.api.rate_limit import limiter
-from realms.api.routes import entities, classes, hierarchy, relationships, cultures, regions, sources, search, stats, metrics, graph, export, review, corroboration, timeline, external_links, integrity, feedback, collections, changelog
+from realms.api.routes import entities, classes, hierarchy, relationships, cultures, regions, sources, search, stats, metrics, graph, export, review, corroboration, timeline, external_links, integrity, feedback, collections, changelog, og
 from realms.api.routes.sources import extractions_router
 
 WEB_DIR = Path(os.getenv("REALMS_WEB_DIR", "/app/web-next/dist"))
@@ -72,6 +72,7 @@ app.include_router(integrity.router, prefix="/integrity", tags=["integrity"])
 app.include_router(feedback.router, prefix="/feedback", tags=["feedback"])
 app.include_router(collections.router, prefix="/collections", tags=["collections"])
 app.include_router(changelog.router, prefix="/changelog", tags=["changelog"])
+app.include_router(og.router, prefix="/og", tags=["og"])
 
 
 if WEB_DIR.exists():

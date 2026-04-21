@@ -22,9 +22,13 @@ const {
   jsonLd,
 } = Astro.props;
 
-const site = Astro.site ?? new URL('http://127.0.0.1:8004');
+const site = Astro.site ?? new URL('http://127.0.0.1:8005');
 const canonicalUrl = new URL(canonical ?? Astro.url.pathname, site).toString();
-const ogImageUrl = ogImage ?? new URL(`${import.meta.env.BASE_URL}og/default.svg`, site).toString();
+// OG images: prefer the dynamic /og/entity/{id}.png endpoint (Pillow-rendered)
+// but fall back to the bundled /app/og/default.svg for static pages.
+const ogImageUrl = ogImage
+  ? (ogImage.startsWith('http') ? ogImage : new URL(ogImage, site).toString())
+  : new URL(`${import.meta.env.BASE_URL}og/default.svg`, site).toString();
 const snapshotAt = new Date().toISOString();
 ---
 <!doctype html>

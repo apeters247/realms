@@ -423,6 +423,30 @@ test.describe('smoke', () => {
     expect.soft(issues.filter(i => i.kind === 'console')).toHaveLength(0);
   });
 
+  test('per-entity OG PNG renders at 1200×630', async ({ request }) => {
+    const r = await request.get('/og/entity/1.png');
+    expect(r.status()).toBe(200);
+    const buf = await r.body();
+    expect(buf.byteLength).toBeGreaterThan(1000);
+    expect(r.headers()['content-type']).toContain('image/png');
+    // PNG signature
+    const sig = Array.from(buf.slice(0, 4));
+    expect(sig).toEqual([0x89, 0x50, 0x4E, 0x47]);
+  });
+
+  test('default OG PNG exists', async ({ request }) => {
+    const r = await request.get('/og/default.png');
+    expect(r.status()).toBe(200);
+    expect(r.headers()['content-type']).toContain('image/png');
+  });
+
+  test('entity page meta og:image points to PNG endpoint', async ({ page }) => {
+    await visit(page, '/entity/chullachaqui/', []);
+    const ogImage = await page.locator('meta[property="og:image"]').getAttribute('content');
+    console.log(`og:image = ${ogImage}`);
+    expect(ogImage).toMatch(/\/og\/entity\/\d+\.png/);
+  });
+
   test('short-form permalink /e/{id} redirects', async ({ request }) => {
     const r = await request.get('/e/1', { maxRedirects: 0 });
     expect([301, 302]).toContain(r.status());
