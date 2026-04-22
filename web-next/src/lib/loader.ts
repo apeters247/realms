@@ -67,6 +67,18 @@ export async function loadSnapshot(opts: { refresh?: boolean } = {}): Promise<Sn
       apiAll<Tradition>('/cultures/', 100),
       apiAll<Region>('/regions/', 100),
     ]);
+    // Exclude entities that have been merged or marked out_of_scope —
+    // their static pages would be zombies pointing at hollow rows.
+    const before = entities.length;
+    entities = entities.filter((e: any) =>
+      !e.review_status || !['merged', 'out_of_scope', 'rejected'].includes(e.review_status),
+    );
+    if (entities.length < before) {
+      console.info(`[realms.loader] filtered ${before - entities.length} merged/out-of-scope entities`);
+    }
+    // Sort by consensus_confidence desc so when two entities share the same
+    // normalised name stem, the higher-confidence one claims the bare slug.
+    entities.sort((a: any, b: any) => (b.consensus_confidence ?? 0) - (a.consensus_confidence ?? 0));
   } catch (err) {
     console.warn('[realms.loader] API fetch failed, building empty snapshot:', err);
     entities = [];

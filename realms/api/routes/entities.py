@@ -25,6 +25,7 @@ async def list_entities(
     page: int = Query(1, ge=1),
     per_page: int = Query(50, ge=1, le=100),
     sort: str = Query("-consensus_confidence,name"),
+    include_merged: bool = Query(False, description="Include entities with review_status merged/out_of_scope/rejected"),
 ):
     """List entities with filtering and pagination."""
     with get_db_session() as session:
@@ -44,6 +45,7 @@ async def list_entities(
             page=page,
             per_page=per_page,
             sort=sort,
+            include_merged=include_merged,
         )
         return {"data": entities, "pagination": compute_pagination(total, page, per_page)}
 

@@ -94,8 +94,17 @@ class EntityService:
         page: int = 1,
         per_page: int = 50,
         sort: str = "-consensus_confidence,name",
+        include_merged: bool = False,
     ) -> tuple[list[dict], int]:
         stmt = select(Entity)
+
+        # By default, filter out entities that have been merged, marked
+        # out-of-scope, or rejected. The static-site builder relies on
+        # this to avoid generating zombie pages for merged duplicates.
+        if not include_merged:
+            stmt = stmt.where(
+                Entity.review_status.notin_(["merged", "out_of_scope", "rejected"])
+            )
 
         if entity_type:
             stmt = stmt.where(Entity.entity_type == entity_type)
