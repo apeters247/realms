@@ -5,7 +5,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { api, apiAll } from './api';
-import { slugWithId } from './slug';
+import { slugWithId, slugify } from './slug';
 import type { EntityDetail, EntitySummary, Tradition, Region } from './types';
 
 export interface Snapshot {
@@ -96,6 +96,31 @@ export async function loadSnapshot(opts: { refresh?: boolean } = {}): Promise<Sn
   for (const e of entities) {
     entityById[e.id] = e;
     entityBySlug[entitySlugById[e.id]] = e;
+  }
+
+  // Also index alternate_names → canonical entity. This lets variant
+  // spellings (Oshun / Ọ̀ṣun / Oxum) all resolve to the canonical page
+  // that survived the dedup pass. First-come-first-served: if the bare
+  // alt slug is already taken by a direct entity name, we skip rather
+  // than shadow.
+  let aliasCount = 0;
+  for (const e of entities) {
+    const alts = (e as any).alternate_names;
+    if (!alts || typeof alts !== 'object') continue;
+    for (const group of Object.values(alts)) {
+      if (!Array.isArray(group)) continue;
+      for (const altName of group as any[]) {
+        if (!altName || typeof altName !== 'string') continue;
+        const altSlug = slugify(altName);
+        if (!altSlug || altSlug.length < 3) continue;
+        if (entityBySlug[altSlug]) continue; // don't override an existing canonical slug
+        entityBySlug[altSlug] = e;
+        aliasCount++;
+      }
+    }
+  }
+  if (aliasCount > 0) {
+    console.info(`[realms.loader] registered ${aliasCount} alternate-name slug aliases`);
   }
 
   const tseen = new Map<string, number>();
