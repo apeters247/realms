@@ -73,14 +73,15 @@ test.describe('smoke', () => {
     const issues: Issue[] = [];
     await visit(page, '/browse/', issues);
     await expect(page.locator('h1').first()).toBeVisible();
-    // Browse uses a dense name-list grouping by letter + type.
-    const nameLinks = page.locator('.name-list li a');
-    const count = await nameLinks.count();
-    console.log(`browse: ${count} entity links`);
-    expect(count).toBeGreaterThan(50);
-    // Alpha nav anchors
-    const alphas = page.locator('.alpha-rail .alpha');
-    expect(await alphas.count()).toBeGreaterThan(5);
+    // Browse is now an interactive filter-rail island.
+    await page.waitForTimeout(1500);
+    const results = page.locator('.results li');
+    const count = await results.count();
+    console.log(`browse: ${count} entity links visible`);
+    expect(count).toBeGreaterThan(20);
+    // Filter controls rendered
+    await expect(page.locator('.filter-rail .search')).toBeVisible();
+    await expect(page.locator('.filter-rail .facets label').first()).toBeVisible();
     await page.screenshot({ path: 'playwright-report/browse.png', fullPage: false });
     if (issues.length) {
       console.log('\n=== BROWSE issues ===');

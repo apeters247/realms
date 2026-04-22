@@ -7,9 +7,11 @@
   let container: HTMLDivElement | null = $state(null);
   let status = $state('loading');
   let semanticOnly = $state(true);
-  let maxNodes = $state(300);
+  let maxNodes = $state(150);
   let traditionFilter = $state<string>('');  // empty = all
   let availableTraditions = $state<string[]>([]);
+  let showLegend = $state(true);
+  let legendEntries = $state<Array<[string, string]>>([]);
 
   // 12 muted hues for tradition coloring. Fallback is ink-faint.
   const TRADITION_COLORS = [
@@ -77,10 +79,22 @@
             ...d,
             _color: colorForTradition(trad),
             _size: 10 + Math.min(8, Number(d.confidence ?? 0) * 8),
+            _tradition: trad || '',
           },
         };
       });
       const edges = validEdges.map(e => ({ data: e.data ?? e }));
+
+      // Legend: top traditions actually present in this view.
+      const tradCounts: Record<string, number> = {};
+      for (const n of nodes) {
+        const t = (n.data as any)._tradition;
+        if (t) tradCounts[t] = (tradCounts[t] || 0) + 1;
+      }
+      legendEntries = Object.entries(tradCounts)
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 12)
+        .map(([t]) => [t, colorForTradition(t)]);
 
       const root = getComputedStyle(document.documentElement);
       const ink = root.getPropertyValue('--ink').trim();
@@ -132,13 +146,25 @@
           {
             selector: 'edge',
             style: {
-              'width': 0.8,
-              'line-color': rule,
-              'target-arrow-color': rule,
+              'width': 1.3,
+              'line-color': inkFaint,
+              'target-arrow-color': inkFaint,
               'target-arrow-shape': 'triangle',
-              'arrow-scale': 0.6,
+              'arrow-scale': 0.7,
               'curve-style': 'bezier',
-              'opacity': 0.75,
+              'opacity': 0.85,
+            },
+          },
+          {
+            // Highlight syncretism-family edges more strongly.
+            selector: 'edge[rel_type = "syncretized_with"],'
+                    + 'edge[rel_type = "equivalent_to"],'
+                    + 'edge[rel_type = "cognate_of"]',
+            style: {
+              'width': 1.8,
+              'line-color': 'data(_color)',
+              'line-style': 'dashed',
+              'opacity': 0.95,
             },
           },
           {
@@ -209,9 +235,32 @@
       {/each}
     </select>
   </label>
+  <label>
+    <input type="checkbox" bind:checked={showLegend} />
+    Legend
+  </label>
   <span class="status">{status}</span>
 </div>
-<div class="graph" bind:this={container}></div>
+<div class="graph-wrap">
+  <div class="graph" bind:this={container}></div>
+  {#if showLegend && legendEntries.length}
+    <aside class="legend ui" aria-label="Tradition colour legend">
+      <h3>Traditions in view</h3>
+      <ul>
+        {#each legendEntries as [tradition, color]}
+          <li>
+            <span class="swatch" style:background={color}></span>
+            <span class="trad-name">{tradition}</span>
+          </li>
+        {/each}
+      </ul>
+      <p class="hint">
+        <span class="dashed-swatch"></span>
+        dashed edges = syncretism / equivalence
+      </p>
+    </aside>
+  {/if}
+</div>
 
 <style>
   .controls {
@@ -241,11 +290,66 @@
   .controls input[type='number'] { width: 72px; }
   .controls select { max-width: 220px; }
   .status { margin-left: auto; color: var(--ink-faint); font-family: var(--font-mono); font-size: var(--fs-xs); }
+  .graph-wrap {
+    position: relative;
+  }
   .graph {
     width: 100%;
     height: 72vh;
     border: 1px solid var(--rule);
     border-radius: 0 0 var(--r-md) var(--r-md);
     background: var(--bg-alt);
+  }
+  .legend {
+    position: absolute;
+    top: 12px;
+    right: 12px;
+    max-width: 220px;
+    padding: var(--sp-3);
+    background: color-mix(in srgb, var(--bg) 92%, transparent);
+    backdrop-filter: blur(6px);
+    border: 1px solid var(--rule);
+    border-radius: var(--r-md);
+    font-size: var(--fs-xs);
+    color: var(--ink-dim);
+    pointer-events: none;
+  }
+  .legend h3 {
+    font-size: var(--fs-xs);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--ink-faint);
+    margin: 0 0 var(--sp-2) 0;
+    font-weight: 500;
+  }
+  .legend ul { list-style: none; padding: 0; margin: 0 0 var(--sp-2) 0; }
+  .legend li {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 1px 0;
+  }
+  .swatch {
+    display: inline-block;
+    width: 14px; height: 6px;
+    border-radius: 2px;
+    flex-shrink: 0;
+  }
+  .trad-name { font-family: var(--font-serif); font-size: var(--fs-xs); color: var(--ink); }
+  .legend .hint {
+    font-size: var(--fs-xs);
+    color: var(--ink-faint);
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    margin: var(--sp-2) 0 0 0;
+    padding-top: var(--sp-2);
+    border-top: 1px solid var(--rule-soft);
+  }
+  .dashed-swatch {
+    display: inline-block;
+    width: 18px;
+    border-top: 1.5px dashed currentColor;
+    height: 0;
   }
 </style>

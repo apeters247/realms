@@ -109,6 +109,82 @@ def _parse_response(content: str) -> dict[str, Any]:
         raise
 
 
+# Canonical enumerations. Anything outside these sets gets normalised to the
+# nearest member, or set to None if nothing matches. This prevents the LLM
+# from inventing types like "realm" / "mythical_creature" / "null".
+ENTITY_TYPE_ENUM = {
+    "angelic", "plant_spirit", "animal_ally", "ancestor",
+    "deity", "demonic", "nature_spirit", "human_specialist",
+}
+ENTITY_TYPE_ALIASES = {
+    "god": "deity", "goddess": "deity", "divinity": "deity",
+    "spirit": "nature_spirit", "spirits": "nature_spirit",
+    "spiritual_being": "nature_spirit",
+    "animal_spirit": "animal_ally", "animal_allies": "animal_ally",
+    "plant_being": "plant_spirit",
+    "angel": "angelic", "archangel": "angelic",
+    "demon": "demonic", "devil": "demonic", "fallen_angel": "demonic",
+    "cryptid": "nature_spirit", "legendary_creature": "nature_spirit",
+    "monster": "nature_spirit", "mythical_creature": "nature_spirit",
+    "mythical": "nature_spirit", "mythological": "nature_spirit",
+    "legendary": "nature_spirit",
+    "saint": "ancestor", "martyr": "ancestor",
+    "shaman": "human_specialist", "priest": "human_specialist",
+    "priestess": "human_specialist", "prophet": "human_specialist",
+    "guardian_spirit": "nature_spirit",
+    "ghost": "ancestor",
+    "realm": None,  # not a valid type; the LLM confused a *place* for an entity type
+    "null": None, "none": None, "undefined": None, "unknown": None,
+    "n/a": None, "": None,
+}
+
+ALIGNMENT_ENUM = {"beneficial", "neutral", "malevolent", "protective", "ambiguous"}
+ALIGNMENT_ALIASES = {
+    "good": "beneficial", "benign": "beneficial", "benevolent": "beneficial",
+    "evil": "malevolent", "bad": "malevolent", "harmful": "malevolent",
+    "guardian": "protective", "protector": "protective",
+    "mixed": "ambiguous", "complex": "ambiguous", "dual": "ambiguous",
+    "null": None, "none": None, "unknown": None, "": None,
+}
+
+REALM_ENUM = {
+    "earth", "sky", "underworld", "water", "forest", "mountain",
+    "hyperspace", "intermediate",
+}
+REALM_ALIASES = {
+    "heaven": "sky", "heavens": "sky", "heavenly": "sky",
+    "celestial": "sky", "cosmic": "sky",
+    "hell": "underworld", "netherworld": "underworld", "afterworld": "underworld",
+    "river": "water", "ocean": "water", "sea": "water", "lake": "water",
+    "woods": "forest", "jungle": "forest", "woodland": "forest",
+    "hill": "mountain", "mountainous": "mountain",
+    "terrestrial": "earth", "ground": "earth",
+    "middle": "intermediate", "between": "intermediate", "liminal": "intermediate",
+    "null": None, "none": None, "unknown": None, "": None,
+}
+
+
+def _normalise_enum(raw: Any, enum: set[str], aliases: dict[str, Any]) -> str | None:
+    """Map an LLM-emitted value to its canonical enum member, or None."""
+    if raw is None:
+        return None
+    s = str(raw).strip().lower().replace("-", "_").replace(" ", "_")
+    if not s or s in {"null", "none", "undefined", "unknown", "n/a"}:
+        return None
+    if s in enum:
+        return s
+    if s in aliases:
+        return aliases[s]
+    # Try suffix variants (e.g. "deities" → "deity")
+    stripped = s.rstrip("s")
+    if stripped in enum:
+        return stripped
+    if stripped in aliases:
+        return aliases[stripped]
+    # Unknown value — drop to None rather than persist a garbage string.
+    return None
+
+
 def _coerce_entity(raw: dict[str, Any]) -> ExtractedEntity | None:
     name = (raw.get("name") or "").strip()
     if not name:
@@ -137,9 +213,9 @@ def _coerce_entity(raw: dict[str, Any]) -> ExtractedEntity | None:
 
     return ExtractedEntity(
         name=name[:200],
-        entity_type=raw.get("entity_type"),
-        alignment=raw.get("alignment"),
-        realm=raw.get("realm"),
+        entity_type=_normalise_enum(raw.get("entity_type"), ENTITY_TYPE_ENUM, ENTITY_TYPE_ALIASES),
+        alignment=_normalise_enum(raw.get("alignment"), ALIGNMENT_ENUM, ALIGNMENT_ALIASES),
+        realm=_normalise_enum(raw.get("realm"), REALM_ENUM, REALM_ALIASES),
         description=(raw.get("description") or None),
         powers=list(raw.get("powers") or []),
         domains=list(raw.get("domains") or []),

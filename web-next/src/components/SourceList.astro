@@ -7,6 +7,22 @@ interface Props {
 }
 const { entity, sourcesByType } = Astro.props;
 
+// Dedupe quotes for the "Source passages" block at render time.
+const uniqueQuotes = (() => {
+  const details = (entity.extraction_details || []).filter((x: any) => x.raw_quote);
+  const seen = new Set<string>();
+  const out: any[] = [];
+  for (const ex of details) {
+    const key = (ex.raw_quote || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+      .toLowerCase().replace(/\s+/g, ' ').trim();
+    if (!key || seen.has(key)) continue;
+    seen.add(key);
+    out.push(ex);
+    if (out.length >= 5) break;
+  }
+  return out;
+})();
+
 function formatAuthors(a: unknown): string {
   if (!a) return '';
   if (typeof a === 'string') return a;
@@ -62,10 +78,10 @@ for (const ex of entity.extraction_details || []) {
     </ol>
   )}
 
-  {entity.extraction_details && entity.extraction_details.length > 0 && (
+  {uniqueQuotes.length > 0 && (
     <div class="quotes">
       <h3>Source passages</h3>
-      {entity.extraction_details.slice(0, 5).map(ex => ex.raw_quote && (
+      {uniqueQuotes.map(ex => (
         <blockquote class="quote">
           <p>“{ex.raw_quote}”</p>
           <cite>
