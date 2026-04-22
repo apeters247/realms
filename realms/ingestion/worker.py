@@ -38,6 +38,8 @@ STUCK_PROCESSING_MINUTES = int(os.getenv("REALMS_INGESTOR_STUCK_MINUTES", "30"))
 # LLM calls. 4 is a safe default that keeps us well under OpenRouter's rate
 # limits while 3-4x-ing end-to-end throughput per source.
 CHUNK_CONCURRENCY = int(os.getenv("REALMS_INGESTOR_CHUNK_CONCURRENCY", "4"))
+CANONICALIZE_EVERY_N = int(os.getenv("REALMS_CANONICALIZE_EVERY_N", "20"))
+_sources_since_canon = 0
 # Stream I: integrity gate. Disabled by default until extractor v4 verbatim quotes
 # are confirmed in production. Set REALMS_INTEGRITY_GATE=on to enable.
 INTEGRITY_GATE_ENABLED = os.getenv("REALMS_INTEGRITY_GATE", "off").lower() in {"on", "1", "true"}
@@ -420,6 +422,41 @@ def _process_source(session: Session, source: IngestionSource) -> tuple[int, int
     if promo.cultures_added or promo.regions_added:
         log.info("[source=%d] promoted cultures=+%d regions=+%d",
                  source.id, promo.cultures_added, promo.regions_added)
+
+    # Continuous canonicalization. Every 20 processed sources, re-apply
+    # the tradition canonical-form map so newly-extracted tag variants
+    # (Christianity / Christian, Hinduism / Hindu, Egyptian / Ancient
+    # Egyptian, …) don't accumulate. Cheap: touches only the entities
+    # whose cultural_associations changed in the most recent batch.
+    global _sources_since_canon
+    _sources_since_canon += 1
+    if _sources_since_canon >= CANONICALIZE_EVERY_N:
+        _sources_since_canon = 0
+        try:
+            from scripts.canonicalize_traditions import canonicalise_one, dedupe_preserving_order
+            from realms.models import Entity
+            from sqlalchemy import select as _select
+            # upserted is a dict: normalised_name → entity_id (int). Touch
+            # only the entities just upserted in this source.
+            ent_ids = list(upserted.values())
+            if ent_ids:
+                touched = 0
+                for e in session.execute(
+                    _select(Entity).where(Entity.id.in_(ent_ids))
+                ).scalars():
+                    ca = e.cultural_associations or []
+                    if not isinstance(ca, list):
+                        continue
+                    new = dedupe_preserving_order([canonicalise_one(x) for x in ca])
+                    if new != ca:
+                        e.cultural_associations = new
+                        touched += 1
+                if touched:
+                    log.info("[source=%d] canonicalised cultures on %d entities",
+                             source.id, touched)
+                    session.commit()
+        except Exception as exc:  # noqa: BLE001
+            log.warning("[source=%d] canonicalize hook error: %s", source.id, exc)
 
     session.commit()
     return n_extractions, len(upserted)
