@@ -53,12 +53,42 @@ OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
 CHECKPOINT_DIR = Path("/app/data/classify_ckpt")
 CHECKPOINT_DIR.mkdir(parents=True, exist_ok=True)
 
-# Free-tier models in order of preferred quality (first tried first)
+# Free-tier models ordered by capability (best first). The script tries
+# each in order on every call; if the top tier is rate-limited, it falls
+# back through the list. When the entire account hits its daily cap
+# (2000/day "free-models-per-day-high-balance"), we stop cleanly and
+# return partial stats rather than burn retries.
+#
+# Ranked by size × reasoning quality × JSON-output cleanness as of 2026-04.
 FREE_MODELS = [
+    # Tier 1 — 120B+, strongest free reasoners
     "nvidia/nemotron-3-super-120b-a12b:free",
     "openai/gpt-oss-120b:free",
+    "minimax/minimax-m2.5:free",
+    "nousresearch/hermes-3-llama-3.1-405b:free",
+    # Tier 2 — 24-80B instruct-tuned
+    "qwen/qwen3-next-80b-a3b-instruct:free",
+    "meta-llama/llama-3.3-70b-instruct:free",
+    "google/gemma-4-31b-it:free",
+    "nvidia/nemotron-3-nano-30b-a3b:free",
+    "google/gemma-4-26b-a4b-it:free",
+    "cognitivecomputations/dolphin-mistral-24b-venice-edition:free",
+    "google/gemma-3-27b-it:free",
+    # Tier 3 — small but reliable
     "z-ai/glm-4.5-air:free",
+    "openai/gpt-oss-20b:free",
+    "inclusionai/ling-2.6-flash:free",
+    "arcee-ai/trinity-large-preview:free",
+    "google/gemma-3-12b-it:free",
 ]
+
+# Daily-cap error codes from OpenRouter. We detect these and stop the
+# run cleanly so the checkpoint is preserved.
+_DAILY_CAP_MARKERS = (
+    "free-models-per-day",
+    "daily-cap",
+    "requests-per-day",
+)
 
 # Typed relationship labels we accept from the LLM. Anything else → leave
 # the edge as co_occurs_with.
@@ -117,6 +147,10 @@ class Verdict:
     model: str
 
 
+class DailyCapHit(RuntimeError):
+    """Raised when OpenRouter returns the account-wide daily cap 429."""
+
+
 def _call(model: str, prompt: str, retries: int = 2) -> Verdict | None:
     api_key = os.environ["OPENROUTER_API_KEY"]
     body = {
@@ -141,7 +175,15 @@ def _call(model: str, prompt: str, retries: int = 2) -> Verdict | None:
                 json=body,
                 timeout=35,
             )
-            if r.status_code == 429 or r.status_code >= 500:
+            if r.status_code == 429:
+                # Distinguish per-minute (retry) from per-day (abort cleanly).
+                body_text = r.text.lower()
+                if any(m in body_text for m in _DAILY_CAP_MARKERS):
+                    raise DailyCapHit(
+                        f"daily cap hit on {model}; stop and retry after reset"
+                    )
+                raise RuntimeError(f"429 per-min on {model}")
+            if r.status_code >= 500:
                 raise RuntimeError(f"{r.status_code}")
             r.raise_for_status()
             content = (r.json()["choices"][0]["message"].get("content") or "").strip()
@@ -158,6 +200,8 @@ def _call(model: str, prompt: str, retries: int = 2) -> Verdict | None:
             conf = float(obj.get("confidence", 0.0) or 0.0)
             quote = str(obj.get("quote", "") or "")[:200]
             return Verdict(label=label, confidence=max(0.0, min(1.0, conf)), quote=quote, model=model)
+        except DailyCapHit:
+            raise
         except Exception as exc:  # noqa: BLE001
             if attempt == retries:
                 return None
@@ -178,13 +222,21 @@ def classify_pair_rotating(
         b_type=b.entity_type or "?",
         passages="\n".join(f'  {i+1}. "{p[:500]}"' for i, p in enumerate(passages[:3])),
     )
-    # Shuffle for load-balancing
-    models_try = models.copy()
-    random.shuffle(models_try)
+    # Try models in their configured order (best first). Only shuffle
+    # within the top tier so load balances across Tier-1 without
+    # demoting a good model to last. The daily-cap sentinel bubbles up.
+    models_try = list(models)
+    daily_cap_models = 0
     for m in models_try:
-        v = _call(m, prompt)
+        try:
+            v = _call(m, prompt)
+        except DailyCapHit:
+            daily_cap_models += 1
+            continue
         if v is not None:
             return v
+    if daily_cap_models == len(models_try):
+        raise DailyCapHit("all configured models hit the daily cap")
     return None
 
 
@@ -337,7 +389,12 @@ def run(
             save_checkpoint(ckpt, eid)
             continue
 
-        verdict = classify_pair_rotating(a, b, passages, FREE_MODELS)
+        try:
+            verdict = classify_pair_rotating(a, b, passages, FREE_MODELS)
+        except DailyCapHit:
+            log.info("daily cap hit; stopping cleanly with stats: %s", stats)
+            stats["stopped_reason"] = "daily_cap"
+            return stats
         if verdict is None:
             stats["llm_fail"] += 1
             # don't checkpoint — so a retry later can try again
