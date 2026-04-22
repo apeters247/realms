@@ -69,6 +69,7 @@ def _entity_to_summary(e: Entity) -> dict:
         "consensus_confidence": e.consensus_confidence or 0.0,
         "cultural_associations": e.cultural_associations or [],
         "geographical_associations": e.geographical_associations or [],
+        "alternate_names": e.alternate_names or {},
     }
 
 
