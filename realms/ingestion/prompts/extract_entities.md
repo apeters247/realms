@@ -29,7 +29,23 @@ If the text mixes scientific / ethnographic content with spiritual content, extr
 2. Descriptions: **2–3 full sentences** (not a fragment) when the text supports it. Include who they are, what they do, and any key traits.
 3. **Relationships**: when the text explicitly states A is the parent / child / consort / teacher / servant / etc. of another named entity, populate the matching role field with the other entity's exact name. Do **not** invent relationships — only transcribe what the text says.
 4. **Temporal fields (v4):** only populate when the text gives a clear date, era, or attested period. Use integer CE years (negative for BCE). Do not guess.
-5. `confidence` 0.0–1.0: 0.9+ for direct named descriptions, 0.6–0.8 for passing mentions.
+5. `confidence` — use the scale below. Match your extraction to the closest example.
+   Do NOT default to 0.9. Assign the score that fits the evidence in the text.
+
+   | Score | Meaning                                                              |
+   |-------|----------------------------------------------------------------------|
+   | 0.95  | Named entity with first-person encounter account or primary ritual   |
+   |       | text. Example: "The shaman described meeting Ayahuasca Madre         |
+   |       | face-to-face during the ceremony…"                                   |
+   | 0.80  | Full paragraph with attributes, domain, and cultural role described. |
+   |       | Example: "Tlaloc is the Aztec god of rain, lightning, and earthly    |
+   |       | fertility, worshipped from at least 200 BCE…"                        |
+   | 0.65  | Named with partial description or single attribute.                  |
+   |       | Example: "…accompanied by Huitzilopochtli, the sun god"             |
+   | 0.40  | Passing mention, list entry, or referenced only by role.             |
+   |       | Example: "…among the many Loa including Ogou"                       |
+   | 0.20  | Ambiguous — entity status uncertain; may be a place or concept.      |
+   |       | Example: "…the spirit of the mountain, unnamed"                     |
 6. `quote_context` ≤300 chars verbatim from the text showing the entity.
 7. Return only JSON — no markdown fences, no commentary.
 8. Empty result → `{"entities": []}`.

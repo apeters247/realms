@@ -21,7 +21,7 @@ import requests
 log = logging.getLogger(__name__)
 
 PROMPT_PATH = Path(__file__).resolve().parent / "prompts" / "extract_entities.md"
-PROMPT_VERSION = "v4"
+PROMPT_VERSION = "v5"
 
 OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
 
