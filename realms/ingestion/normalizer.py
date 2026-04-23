@@ -42,22 +42,34 @@ def _stem_key(name: str) -> str:
 
 
 def _find_existing(session: Session, name: str) -> Entity | None:
-    """Find an entity by exact name, case-insensitive, or fuzzy stem match."""
-    # 1. exact case-insensitive
+    """Find an entity by exact name, case-insensitive, or trigram fuzzy match.
+
+    Uses the GIN trigram index ``idx_entities_name_trgm`` for O(log n) lookups
+    instead of the previous O(n) full-scan loop.
+    """
+    # 1. Fast exact case-insensitive match (covers ~99% of duplicates)
     hit = session.execute(
-        select(Entity).where(Entity.name.ilike(name))
+        select(Entity).where(func.lower(Entity.name) == name.lower())
     ).scalar_one_or_none()
     if hit is not None:
         return hit
 
-    # 2. stem equality across all entities (bounded N in MVP — Postgres trigram
-    #    would be the production fix once count > ~10k)
+    # 2. Trigram fuzzy match backed by idx_entities_name_trgm GIN index
     stem = _stem_key(name)
-    candidates = session.execute(select(Entity)).scalars().all()
-    for c in candidates:
-        if _stem_key(c.name) == stem:
-            log.info("Fuzzy match: %r ~= existing %r (stem=%s)", name, c.name, stem)
-            return c
+    rows = session.execute(
+        select(Entity, func.similarity(Entity.name, name).label("sim"))
+        .where(func.similarity(Entity.name, name) > 0.55)
+        .order_by(func.similarity(Entity.name, name).desc())
+        .limit(10)
+    ).all()
+    for row in rows:
+        entity, sim = row[0], row[1]
+        if _stem_key(entity.name) == stem or sim > 0.80:
+            log.info(
+                "Trigram match: %r ~= existing %r (sim=%.2f)",
+                name, entity.name, sim,
+            )
+            return entity
     return None
 
 
