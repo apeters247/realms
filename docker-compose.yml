@@ -98,6 +98,9 @@ services:
       REALMS_INGESTOR_CHUNK_CONCURRENCY: "2"
       REALMS_EXTRACTION_MODEL: nvidia/nemotron-3-super-120b-a12b:free
       REALMS_EXTRACTION_FALLBACK_MODELS: openai/gpt-oss-120b:free,google/gemma-4-26b-a4b-it:free,nvidia/nemotron-3-nano-30b-a3b:free,openai/gpt-oss-20b:free
+      REALMS_INTEGRITY_GATE: "on"
+      REALMS_INTEGRITY_ACCEPT: "0.85"
+      REALMS_INTEGRITY_FLAG: "0.65"
     volumes:
       - ./realms:/app/realms
       - ./scripts:/app/scripts
@@ -143,6 +146,9 @@ services:
       # the same model's rate limit simultaneously.
       REALMS_EXTRACTION_MODEL: openai/gpt-oss-120b:free
       REALMS_EXTRACTION_FALLBACK_MODELS: nvidia/nemotron-3-super-120b-a12b:free,google/gemma-4-26b-a4b-it:free,openai/gpt-oss-20b:free,nvidia/nemotron-3-nano-30b-a3b:free
+      REALMS_INTEGRITY_GATE: "on"
+      REALMS_INTEGRITY_ACCEPT: "0.85"
+      REALMS_INTEGRITY_FLAG: "0.65"
     volumes:
       - ./realms:/app/realms
       - ./scripts:/app/scripts
@@ -180,6 +186,9 @@ services:
       REALMS_INGESTOR_CHUNK_CONCURRENCY: "2"
       REALMS_EXTRACTION_MODEL: openai/gpt-oss-20b:free
       REALMS_EXTRACTION_FALLBACK_MODELS: nvidia/nemotron-3-nano-30b-a3b:free,inclusionai/ling-2.6-flash:free,openai/gpt-oss-120b:free,nvidia/nemotron-3-super-120b-a12b:free
+      REALMS_INTEGRITY_GATE: "on"
+      REALMS_INTEGRITY_ACCEPT: "0.85"
+      REALMS_INTEGRITY_FLAG: "0.65"
     volumes:
       - ./realms:/app/realms
       - ./scripts:/app/scripts
@@ -217,6 +226,9 @@ services:
       REALMS_INGESTOR_CHUNK_CONCURRENCY: "2"
       REALMS_EXTRACTION_MODEL: nvidia/nemotron-3-super-120b-a12b:free
       REALMS_EXTRACTION_FALLBACK_MODELS: google/gemma-4-26b-a4b-it:free,openai/gpt-oss-120b:free,nvidia/nemotron-3-nano-30b-a3b:free,inclusionai/ling-2.6-flash:free
+      REALMS_INTEGRITY_GATE: "on"
+      REALMS_INTEGRITY_ACCEPT: "0.85"
+      REALMS_INTEGRITY_FLAG: "0.65"
     volumes:
       - ./realms:/app/realms
       - ./scripts:/app/scripts
