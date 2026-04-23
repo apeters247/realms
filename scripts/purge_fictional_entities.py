@@ -33,7 +33,7 @@ FICTIONAL_SIGNALS = [
     "comic book",
     "video game",
     "animated series",
-    "television series",
+    "fictional television series",
     "novel by",
     "film by",
     "movie character",

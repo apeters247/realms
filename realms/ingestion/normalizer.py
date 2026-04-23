@@ -44,9 +44,12 @@ def _stem_key(name: str) -> str:
 def _find_existing(session: Session, name: str) -> Entity | None:
     """Find an entity by exact name, case-insensitive, or trigram fuzzy match.
 
-    Uses the GIN trigram index ``idx_entities_name_trgm`` for O(log n) lookups
-    instead of the previous O(n) full-scan loop.
+    Uses the GIN index ``idx_entities_name_trgm`` via the ``%`` similarity
+    operator (set_limit + %) to enable index scans instead of sequential scans.
+    Falls back gracefully to similarity() scoring for ranking.
     """
+    from sqlalchemy import text
+
     # 1. Fast exact case-insensitive match (covers ~99% of duplicates)
     hit = session.execute(
         select(Entity).where(func.lower(Entity.name) == name.lower())
@@ -54,11 +57,12 @@ def _find_existing(session: Session, name: str) -> Entity | None:
     if hit is not None:
         return hit
 
-    # 2. Trigram fuzzy match backed by idx_entities_name_trgm GIN index
+    # 2. Trigram fuzzy match — set threshold so PostgreSQL uses the GIN index
+    session.execute(text("SET pg_trgm.similarity_threshold = 0.55"))
     stem = _stem_key(name)
     rows = session.execute(
         select(Entity, func.similarity(Entity.name, name).label("sim"))
-        .where(func.similarity(Entity.name, name) > 0.55)
+        .where(Entity.name.op("%")(name))
         .order_by(func.similarity(Entity.name, name).desc())
         .limit(10)
     ).all()
