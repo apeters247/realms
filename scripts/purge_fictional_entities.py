@@ -76,6 +76,7 @@ def purge_entities(session: Session, entity_ids: list[int]) -> dict:
     )
     ext_result = session.execute(
         delete(IngestedEntity).where(
+            IngestedEntity.entity_name_raw.in_(names) |
             IngestedEntity.entity_name_normalized.in_(names)
         )
     )

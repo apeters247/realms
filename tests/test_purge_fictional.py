@@ -65,6 +65,25 @@ def test_purge_entities_deletes_fictional(db_session, fictional_entity, real_ent
     assert deleted is None
 
 
+def test_purge_entities_cascades_extractions(db_session, fictional_entity, seeded_source):
+    ie = IngestedEntity(
+        source_id=seeded_source,
+        entity_name_raw=fictional_entity.name,
+        entity_name_normalized=fictional_entity.name,
+        status="raw",
+    )
+    db_session.add(ie)
+    db_session.flush()
+    purge_entities(db_session, [fictional_entity.id])
+    db_session.commit()
+    remaining = db_session.execute(
+        select(IngestedEntity).where(
+            IngestedEntity.entity_name_normalized == fictional_entity.name
+        )
+    ).scalars().all()
+    assert len(remaining) == 0
+
+
 def test_purge_entities_cascades_relationships(db_session, fictional_entity, real_entity):
     rel = EntityRelationship(
         source_entity_id=fictional_entity.id,
