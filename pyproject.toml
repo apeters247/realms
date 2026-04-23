@@ -16,6 +16,7 @@ ignore = ["E402"]
 [tool.pytest.ini_options]
 markers = [
     "integration: integration tests that hit a real PostgreSQL database",
+    "unit: fast unit tests with no external dependencies",
 ]
 testpaths = ["tests"]
 pythonpath = ["."]
