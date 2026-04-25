@@ -169,6 +169,7 @@ class LinkPayload(BaseModel):
 async def list_actions(
     entity_id: int | None = Query(None),
     limit: int = Query(100, ge=1, le=500),
+    reviewer: str = Depends(require_review_token),
 ):
     """Recent audit trail entries, optionally filtered by entity."""
     with get_db_session() as session:

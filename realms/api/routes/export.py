@@ -9,10 +9,11 @@ import zipfile
 from datetime import datetime, timezone
 from typing import Iterable
 
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import Response, StreamingResponse
 from sqlalchemy import select
 
+from realms.api.rate_limit import limiter
 from realms.models import Culture, Entity, EntityRelationship, GeographicRegion, IngestionSource
 from realms.utils.database import get_db_session
 
@@ -366,7 +367,8 @@ Full text: https://creativecommons.org/licenses/by/4.0/legalcode
 
 
 @router.get("/dataset.zip")
-async def export_dataset_zip():
+@limiter.limit("5/hour")
+async def export_dataset_zip(request: Request):
     """Streaming ZIP of the entire public corpus.
 
     Generated on-demand (no server cache yet). For a 2000-entity corpus

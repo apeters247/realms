@@ -6,6 +6,7 @@ read from env var ``REALMS_REVIEW_TOKEN``. If unset, review endpoints return
 """
 from __future__ import annotations
 
+import hmac
 import os
 
 from fastapi import Header, HTTPException, status
@@ -35,7 +36,7 @@ def require_review_token(authorization: str | None = Header(default=None)) -> st
         )
     prefix = "Bearer "
     token = authorization[len(prefix):] if authorization.startswith(prefix) else authorization
-    if token != expected:
+    if not hmac.compare_digest(token, expected):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="invalid review token",

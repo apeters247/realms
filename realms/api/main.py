@@ -2,16 +2,19 @@
 REALMS API Main Application
 Read-only service for spiritual entity knowledge base
 """
+import logging
 import os
 from pathlib import Path
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, RedirectResponse
+from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from slowapi.middleware import SlowAPIMiddleware
+
+log = logging.getLogger(__name__)
 
 from realms.api.rate_limit import limiter
 from realms.api.routes import entities, classes, hierarchy, relationships, cultures, regions, sources, search, stats, metrics, graph, export, review, corroboration, timeline, external_links, integrity, feedback, collections, changelog, og
@@ -19,6 +22,7 @@ from realms.api.routes.sources import extractions_router
 
 WEB_DIR = Path(os.getenv("REALMS_WEB_DIR", "/app/web-next/dist"))
 LEGACY_WEB_DIR = Path(os.getenv("REALMS_LEGACY_WEB_DIR", "/app/web"))
+PUBLIC_ORIGIN = os.getenv("REALMS_PUBLIC_ORIGIN", "https://realmsoutthere.com")
 
 app = FastAPI(
     title="REALMS API",
@@ -26,7 +30,7 @@ app = FastAPI(
     version="1.0.0",
     contact={
         "name": "REALMS Project",
-        "url": "https://realms.org",
+        "url": PUBLIC_ORIGIN,
     },
     license_info={
         "name": "MIT",
@@ -39,15 +43,24 @@ app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 app.add_middleware(SlowAPIMiddleware)
 
-# CORS middleware for public access. Writes are token-gated at the endpoint
-# level (see realms/api/dependencies.py); allowing POST/PATCH here just lets
-# the in-app UI talk to /review/* and /corroboration/* from the browser.
+
+@app.exception_handler(Exception)
+async def _unhandled_exception(request: Request, exc: Exception) -> JSONResponse:
+    log.exception("Unhandled error on %s %s", request.method, request.url.path)
+    return JSONResponse(status_code=500, content={"error": "internal server error"})
+
+
+# CORS: public read API, writes are token-gated at the endpoint level.
+_cors_origins = [o.strip() for o in os.getenv(
+    "REALMS_CORS_ORIGINS",
+    f"{PUBLIC_ORIGIN},https://www.realmsoutthere.com",
+).split(",") if o.strip()]
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # In production, specify specific domains
-    allow_credentials=True,
+    allow_origins=_cors_origins,
+    allow_credentials=False,
     allow_methods=["GET", "POST", "PATCH", "OPTIONS"],
-    allow_headers=["*"],
+    allow_headers=["Authorization", "Content-Type"],
 )
 
 # Include all routers

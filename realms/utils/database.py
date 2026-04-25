@@ -15,7 +15,7 @@ def _build_dsn() -> str:
     host = os.getenv("POSTGRES_HOST", "postgres")
     port = os.getenv("POSTGRES_PORT", "5432")
     user = os.getenv("POSTGRES_USER", "estimabio")
-    password = os.getenv("POSTGRES_PASSWORD", "estimabio123")
+    password = os.environ["POSTGRES_PASSWORD"]
     db = os.getenv("POSTGRES_DB", "estimabio")
     return f"postgresql+psycopg2://{user}:{password}@{host}:{port}/{db}"
 

@@ -155,7 +155,7 @@ async def entity_og(entity_id: int):
             png = _render_png(entity)
         except Exception as exc:  # noqa: BLE001
             log.warning("OG render failed for %d: %s", entity_id, exc)
-            raise HTTPException(500, detail=f"render failed: {exc}")
+            raise HTTPException(500, detail="image render failed")
 
     try:
         cache_path.write_bytes(png)

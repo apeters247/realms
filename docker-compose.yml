@@ -13,7 +13,7 @@ x-common-env: &common-env
   LITELLM_MASTER_KEY: ${LITELLM_MASTER_KEY:-sk-dummy}
   NEO4J_URI: ${NEO4J_URI:-bolt://neo4j:7687}
   NEO4J_USER: ${NEO4J_USER:-neo4j}
-  NEO4J_PASSWORD: ${NEO4J_PASSWORD:-estimabio123}
+  NEO4J_PASSWORD: ${NEO4J_PASSWORD}
   OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
   REALMS_PAIR_MODEL: ${REALMS_PAIR_MODEL:-google/gemini-2.0-flash-001}
   REALMS_PAIR_FALLBACK: ${REALMS_PAIR_FALLBACK:-deepseek/deepseek-chat}
@@ -45,15 +45,13 @@ services:
           memory: '512m'
     ports:
       - "127.0.0.1:8005:8001"
-      - "127.0.0.1:8006:8001"
     environment:
       <<: *common-env
       HOST: 0.0.0.0
       PORT: 8001
       LOG_LEVEL: ${LOG_LEVEL:-info}
-      # 600/min works for the SSG build loop that hits ~65 paginated pages
-      # back-to-back. Cloudflare handles real abuse protection in front.
-      REALMS_RATE_LIMIT_PER_MINUTE: ${REALMS_RATE_LIMIT_PER_MINUTE:-600}
+      # Override to 600 during SSG builds: REALMS_RATE_LIMIT_PER_MINUTE=600 docker compose up
+      REALMS_RATE_LIMIT_PER_MINUTE: ${REALMS_RATE_LIMIT_PER_MINUTE:-60}
     volumes:
       - ./realms:/app/realms
       - ./scripts:/app/scripts
