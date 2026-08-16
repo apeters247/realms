@@ -62,11 +62,10 @@ export async function loadSnapshot(opts: { refresh?: boolean } = {}): Promise<Sn
   let traditions: Tradition[];
   let regions: Region[];
   try {
-    [entities, traditions, regions] = await Promise.all([
-      apiAll<EntitySummary>('/entities/', 100),
-      apiAll<Tradition>('/cultures/', 100),
-      apiAll<Region>('/regions/', 100),
-    ]);
+    // Sequential, not parallel — stay well under the 60 req/min rate limit.
+    entities = await apiAll<EntitySummary>('/entities/', 100);
+    traditions = await apiAll<Tradition>('/cultures/', 100);
+    regions = await apiAll<Region>('/regions/', 100);
     // Exclude entities that have been merged or marked out_of_scope —
     // their static pages would be zombies pointing at hollow rows.
     const before = entities.length;

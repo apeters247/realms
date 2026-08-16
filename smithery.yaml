@@ -1,0 +1,8 @@
+name: realms
+description: "Spiritual entity knowledge base — 18,000+ deities, spirits, and ancestors from global traditions, with full provenance tracking and typed relationships"
+command: python -m realms.mcp.server
+env:
+  REALMS_API_KEY:
+    description: "Your REALMS API key. Get a free key at https://realmsouthere.com/pricing"
+    required: true
+url: https://realmsouthere.com

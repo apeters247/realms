@@ -1,0 +1,351 @@
+---
+import Base from '../layouts/Base.astro';
+import { url } from '../lib/url';
+const apiOrigin = typeof process !== 'undefined' && process.env?.REALMS_API_ORIGIN
+  ? process.env.REALMS_API_ORIGIN
+  : 'https://realmsouthere.com';
+---
+<Base title="Pricing" description="REALMS API pricing — access 18,000+ spiritual entities with provenance tracking">
+  <div class="hero">
+    <h1>REALMS API</h1>
+    <p class="subtitle">Access the world's largest provenance-tracked spiritual entity knowledge base.</p>
+  </div>
+
+  <div class="plans">
+    <div class="plan">
+      <h2>Free</h2>
+      <div class="price">$0</div>
+      <p class="period">forever</p>
+      <ul>
+        <li>50 queries / day</li>
+        <li>Search entities, get detail</li>
+        <li>REST API access</li>
+        <li>Rate limited (60/min)</li>
+      </ul>
+      <button class="btn btn-outline" id="gen-free-key">Get Free API Key</button>
+      <div id="free-key-result" style="display:none; margin-top: var(--sp-3);">
+        <p style="font-size: var(--fs-sm); color: var(--ink-dim); margin-bottom: var(--sp-2);">Your API key:</p>
+        <code id="free-key-display" style="display:block; padding: var(--sp-2); background: var(--bg); border: 1px solid var(--rule); border-radius: var(--r-sm); word-break: break-all; font-size: var(--fs-xs); user-select: all;"></code>
+        <button class="btn btn-outline" id="copy-key" style="margin-top: var(--sp-2); font-size: var(--fs-xs); padding: var(--sp-1) var(--sp-3);">Copy</button>
+        <p style="font-size: var(--fs-xs); color: var(--ink-faint); margin-top: var(--sp-2);">50 queries/day. <a href="#pro" style="color: var(--accent);">Upgrade to Pro</a> for 10,000/day.</p>
+      </div>
+      <div id="free-key-error" style="display:none; margin-top: var(--sp-3);">
+        <p style="font-size: var(--fs-sm); color: var(--accent);">Could not generate key. <button class="btn btn-outline" id="retry-free-key" style="font-size: var(--fs-xs); padding: var(--sp-1) var(--sp-3); margin-top: var(--sp-1);">Try again</button></p>
+      </div>
+    </div>
+
+    <div class="plan featured">
+      <div class="badge">Recommended</div>
+      <h2>Pro</h2>
+      <div class="price">$20</div>
+      <p class="period">/ month</p>
+      <ul>
+        <li><strong>10,000 queries / day</strong></li>
+        <li>Full REST API + MCP access</li>
+        <li>All entity data, relationships, corroboration</li>
+        <li>Export in JSON / CSV</li>
+        <li>Priority support</li>
+      </ul>
+      <button class="btn btn-primary" id="checkout-pro">Subscribe</button>
+    </div>
+
+    <div class="plan">
+      <h2>Enterprise</h2>
+      <div class="price">Custom</div>
+      <p class="period">volume pricing</p>
+      <ul>
+        <li>Unlimited queries</li>
+        <li>Bulk data export</li>
+        <li>Dedicated MCP instance</li>
+        <li>SLA guarantee</li>
+        <li>Custom integration support</li>
+      </ul>
+      <a class="btn btn-outline" href="mailto:enterprise@realmsouthere.com">Contact us</a>
+    </div>
+  </div>
+
+  <div class="features">
+    <h2>What you get</h2>
+    <div class="grid">
+      <div class="feature">
+        <h3>18,000+ Entities</h3>
+        <p>Deities, spirits, ancestors, angels, and more from global traditions. Every entity has provenance-tracked sources with confidence scores.</p>
+      </div>
+      <div class="feature">
+        <h3>130,000+ Relationships</h3>
+        <p>14 typed relationship types including parent_of, sibling_of, consort_of, allied_with, enemy_of, syncretized_with.</p>
+      </div>
+      <div class="feature">
+        <h3>MCP Native</h3>
+        <p>Connect via MCP protocol — works with Claude Code, Cursor, VS Code, and any MCP-compatible agent.</p>
+      </div>
+      <div class="feature">
+        <h3>Provenance Tracking</h3>
+        <p>Every fact includes source citation, extraction confidence, cross-source consensus scoring, and integrity verification.</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="faq">
+    <h2>FAQ</h2>
+    <details open>
+      <summary>How do I get a free API key?</summary>
+      <p>Click the <strong>Get Free API Key</strong> button on the Free tier card above. Your key is generated instantly — no account or email required. You get 50 queries per day, free forever.</p>
+    </details>
+    <details>
+      <summary>How do I use my API key?</summary>
+      <p>Include it in the <code>X-API-Key</code> header: <code>curl -H "X-API-Key: ro_..." https://realmsouthere.com/entities/</code>. For MCP, set the <code>REALMS_API_KEY</code> environment variable.</p>
+    </details>
+    <details>
+      <summary>Can I use this for commercial projects?</summary>
+      <p>Yes. The Pro and Enterprise tiers include commercial usage rights. See our Terms of Service for details.</p>
+    </details>
+    <details>
+      <summary>What's the data license?</summary>
+      <p>Our entity extractions and relationships are our IP. Wikipedia source text remains CC-BY-SA. Your API subscription grants you a non-exclusive, worldwide license to use the data for your projects.</p>
+    </details>
+    <details>
+      <summary>How do I cancel?</summary>
+      <p>Cancel anytime from your Stripe dashboard. Your API key remains active until the end of the billing period.</p>
+    </details>
+  </div>
+</Base>
+
+<script>
+  document.getElementById('checkout-pro')?.addEventListener('click', async () => {
+    try {
+      const resp = await fetch('/api/subscriptions/create-checkout', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tier: 'pro' }),
+      });
+      if (!resp.ok) throw new Error(await resp.text());
+      const { url } = await resp.json();
+      window.location.href = url;
+    } catch (e) {
+      alert('Checkout failed: ' + e.message + '\nMake sure STRIPE_SECRET_KEY is configured on the server.');
+    }
+  });
+
+  const genBtn = document.getElementById('gen-free-key');
+  const resultEl = document.getElementById('free-key-result');
+  const errorEl = document.getElementById('free-key-error');
+  const keyDisplay = document.getElementById('free-key-display');
+  const copyBtn = document.getElementById('copy-key');
+  const retryBtn = document.getElementById('retry-free-key');
+
+  async function generateFreeKey() {
+    genBtn.disabled = true;
+    genBtn.textContent = 'Generating...';
+    errorEl.style.display = 'none';
+    resultEl.style.display = 'none';
+    try {
+      const resp = await fetch('/api/keys/generate', { method: 'POST' });
+      if (!resp.ok) throw new Error(await resp.text());
+      const data = await resp.json();
+      keyDisplay.textContent = data.key;
+      resultEl.style.display = 'block';
+    } catch (e) {
+      errorEl.style.display = 'block';
+    } finally {
+      genBtn.disabled = false;
+      genBtn.textContent = 'Get Free API Key';
+    }
+  }
+
+  genBtn?.addEventListener('click', generateFreeKey);
+  retryBtn?.addEventListener('click', generateFreeKey);
+  copyBtn?.addEventListener('click', () => {
+    const key = keyDisplay.textContent;
+    if (key) {
+      navigator.clipboard.writeText(key).then(() => {
+        copyBtn.textContent = 'Copied!';
+        setTimeout(() => { copyBtn.textContent = 'Copy'; }, 2000);
+      });
+    }
+  });
+</script>
+
+<style>
+  .hero {
+    text-align: center;
+    padding: var(--sp-12) var(--sp-5) var(--sp-8);
+    max-width: 600px;
+    margin: 0 auto;
+  }
+  .hero h1 {
+    font-family: var(--font-serif);
+    font-size: var(--fs-2xl);
+    font-weight: 550;
+    margin-bottom: var(--sp-3);
+    color: var(--ink);
+  }
+  .subtitle {
+    color: var(--ink-dim);
+    font-size: var(--fs-lg);
+    line-height: 1.5;
+  }
+  .plans {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: var(--sp-5);
+    max-width: var(--page-max);
+    margin: 0 auto;
+    padding: 0 var(--sp-5) var(--sp-10);
+  }
+  .plan {
+    background: var(--bg-alt);
+    border: 1px solid var(--rule);
+    border-radius: var(--r-lg);
+    padding: var(--sp-8) var(--sp-6);
+    display: flex;
+    flex-direction: column;
+    position: relative;
+  }
+  .plan.featured {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 1px var(--accent);
+    transform: scale(1.03);
+  }
+  .badge {
+    position: absolute;
+    top: -12px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: var(--accent);
+    color: white;
+    font-size: var(--fs-xs);
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    padding: 4px 16px;
+    border-radius: var(--r-full);
+  }
+  .plan h2 {
+    font-family: var(--font-serif);
+    font-size: var(--fs-xl);
+    margin-bottom: var(--sp-2);
+  }
+  .price {
+    font-family: var(--font-serif);
+    font-size: var(--fs-2xl);
+    font-weight: 550;
+    color: var(--ink);
+    line-height: 1;
+  }
+  .period {
+    color: var(--ink-faint);
+    font-size: var(--fs-sm);
+    margin-bottom: var(--sp-6);
+  }
+  .plan ul {
+    list-style: none;
+    padding: 0;
+    margin: 0 0 var(--sp-6);
+    flex: 1;
+  }
+  .plan li {
+    padding: var(--sp-2) 0;
+    color: var(--ink-dim);
+    font-size: var(--fs-sm);
+    border-bottom: 1px solid var(--rule-soft);
+  }
+  .plan li:last-child { border: none; }
+  .btn {
+    display: block;
+    text-align: center;
+    padding: var(--sp-3) var(--sp-5);
+    border-radius: var(--r-md);
+    font-size: var(--fs-sm);
+    font-weight: 500;
+    text-decoration: none;
+    cursor: pointer;
+    border: none;
+    font-family: var(--font-sans);
+    transition: all var(--dur-fast) var(--ease);
+  }
+  .btn-primary {
+    background: var(--accent);
+    color: white;
+  }
+  .btn-primary:hover { opacity: 0.9; }
+  .btn-outline {
+    background: transparent;
+    border: 1px solid var(--rule);
+    color: var(--ink-dim);
+  }
+  .btn-outline:hover {
+    border-color: var(--ink-faint);
+    color: var(--ink);
+  }
+  .features {
+    max-width: var(--page-max);
+    margin: 0 auto;
+    padding: var(--sp-10) var(--sp-5);
+  }
+  .features h2 {
+    font-family: var(--font-serif);
+    font-size: var(--fs-xl);
+    margin-bottom: var(--sp-6);
+    text-align: center;
+  }
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: var(--sp-5);
+  }
+  .feature {
+    background: var(--bg-alt);
+    border: 1px solid var(--rule-soft);
+    border-radius: var(--r-md);
+    padding: var(--sp-5);
+  }
+  .feature h3 {
+    font-family: var(--font-serif);
+    font-size: var(--fs-base);
+    margin-bottom: var(--sp-2);
+  }
+  .feature p {
+    color: var(--ink-dim);
+    font-size: var(--fs-sm);
+    line-height: 1.55;
+  }
+  .faq {
+    max-width: 640px;
+    margin: 0 auto;
+    padding: var(--sp-10) var(--sp-5);
+  }
+  .faq h2 {
+    font-family: var(--font-serif);
+    font-size: var(--fs-xl);
+    margin-bottom: var(--sp-6);
+    text-align: center;
+  }
+  details {
+    border-bottom: 1px solid var(--rule-soft);
+    padding: var(--sp-4) 0;
+  }
+  summary {
+    cursor: pointer;
+    font-weight: 500;
+    color: var(--ink);
+  }
+  details p {
+    color: var(--ink-dim);
+    font-size: var(--fs-sm);
+    margin-top: var(--sp-3);
+    line-height: 1.55;
+  }
+  code {
+    font-family: var(--font-mono);
+    font-size: 0.9em;
+    background: var(--bg-alt);
+    padding: 2px 6px;
+    border-radius: var(--r-sm);
+  }
+  @media (max-width: 720px) {
+    .plans { grid-template-columns: 1fr; }
+    .plan.featured { transform: none; }
+    .grid { grid-template-columns: 1fr; }
+  }
+</style>

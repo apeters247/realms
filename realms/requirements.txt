@@ -27,6 +27,10 @@ Pillow>=10.0.0
 # Rate limiting
 slowapi>=0.1.9
 
+# Monetization
+stripe>=8.0.0
+mcp>=1.0.0
+
 # Migrations
 alembic>=1.13.0
 

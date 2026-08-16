@@ -17,7 +17,7 @@ from slowapi.middleware import SlowAPIMiddleware
 log = logging.getLogger(__name__)
 
 from realms.api.rate_limit import limiter
-from realms.api.routes import entities, classes, hierarchy, relationships, cultures, regions, sources, search, stats, metrics, graph, export, review, corroboration, timeline, external_links, integrity, feedback, collections, changelog, og
+from realms.api.routes import entities, classes, hierarchy, relationships, cultures, regions, sources, search, stats, metrics, graph, export, review, corroboration, timeline, external_links, integrity, feedback, collections, changelog, og, subscriptions
 from realms.api.routes.sources import extractions_router
 
 WEB_DIR = Path(os.getenv("REALMS_WEB_DIR", "/app/web-next/dist"))
@@ -60,7 +60,7 @@ app.add_middleware(
     allow_origins=_cors_origins,
     allow_credentials=False,
     allow_methods=["GET", "POST", "PATCH", "OPTIONS"],
-    allow_headers=["Authorization", "Content-Type"],
+    allow_headers=["Authorization", "Content-Type", "X-API-Key"],
 )
 
 # Include all routers
@@ -86,6 +86,14 @@ app.include_router(feedback.router, prefix="/feedback", tags=["feedback"])
 app.include_router(collections.router, prefix="/collections", tags=["collections"])
 app.include_router(changelog.router, prefix="/changelog", tags=["changelog"])
 app.include_router(og.router, prefix="/og", tags=["og"])
+app.include_router(subscriptions.router, tags=["subscriptions"])
+app.include_router(subscriptions.key_router, tags=["keys"])
+
+# API key middleware for paid access (after public routes, before API routes)
+_enable_auth = os.getenv("REALMS_API_KEY_AUTH", "").lower() in ("1", "true", "on")
+if _enable_auth:
+    from realms.api.api_key_middleware import APIKeyMiddleware
+    app.add_middleware(APIKeyMiddleware)
 
 
 if WEB_DIR.exists():

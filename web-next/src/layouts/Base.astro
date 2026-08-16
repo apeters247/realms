@@ -30,6 +30,7 @@ const ogImageUrl = ogImage
   ? (ogImage.startsWith('http') ? ogImage : new URL(ogImage, site).toString())
   : new URL(`${import.meta.env.BASE_URL}og/default.svg`, site).toString();
 const snapshotAt = new Date().toISOString();
+const frontendApiKey = import.meta.env.PUBLIC_REALMS_FRONTEND_API_KEY || "";
 ---
 <!doctype html>
 <html lang="en">
@@ -41,6 +42,7 @@ const snapshotAt = new Date().toISOString();
     <link rel="canonical" href={canonicalUrl} />
     {noindex && <meta name="robots" content="noindex, nofollow" />}
     <meta name="realms-snapshot-at" content={snapshotAt} />
+{frontendApiKey && <meta name="realms-api-key" content={frontendApiKey} />}
 
     <meta property="og:type" content="website" />
     <meta property="og:title" content={`${title} — REALMS`} />
@@ -81,6 +83,22 @@ const snapshotAt = new Date().toISOString();
           }
         } catch (e) { /* storage blocked */ }
       })();
+      // Frontend API key + fetch interceptor — injected at build time.
+      var _k = document.querySelector('meta[name="realms-api-key"]');
+      window.__REALMS_API_KEY = _k ? _k.getAttribute('content') : '';
+      if (window.__REALMS_API_KEY) {
+        const origFetch = window.fetch.bind(window);
+        window.fetch = function(url, opts) {
+          opts = opts || {};
+          if (typeof url === 'string' && url.startsWith('/')) {
+            opts.headers = opts.headers || {};
+            if (!opts.headers['X-API-Key']) {
+              opts.headers['X-API-Key'] = window.__REALMS_API_KEY;
+            }
+          }
+          return origFetch(url, opts);
+        };
+      }
     </script>
   </head>
   <body>

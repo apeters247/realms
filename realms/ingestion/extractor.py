@@ -232,6 +232,42 @@ def _coerce_entity(raw: dict[str, Any]) -> ExtractedEntity | None:
     )
 
 
+class _DailyLimitExceeded(RuntimeError):
+    """Daily free-tier quota gone for this model — skip retries, fall through."""
+
+
+def _parse_retry_after(resp: "requests.Response") -> float | None:
+    """Best-effort extraction of how long to wait before retrying.
+
+    OpenRouter surfaces three signals on 429:
+      - HTTP `Retry-After` header (seconds, integer)
+      - body.error.metadata.retry_after_seconds (float, preferred)
+      - body.error.metadata.headers.X-RateLimit-Reset (epoch ms, sometimes
+        wildly in the future on daily-quota errors — caller must clamp)
+    """
+    ra = resp.headers.get("Retry-After") or resp.headers.get("retry-after")
+    if ra:
+        try:
+            return float(ra)
+        except ValueError:
+            pass
+    try:
+        body = resp.json()
+        meta = body.get("error", {}).get("metadata", {}) or {}
+        if "retry_after_seconds" in meta:
+            return float(meta["retry_after_seconds"])
+        hdrs = meta.get("headers", {}) or {}
+        for k in ("Retry-After", "retry-after"):
+            if k in hdrs:
+                try:
+                    return float(hdrs[k])
+                except ValueError:
+                    pass
+    except Exception:  # noqa: BLE001
+        pass
+    return None
+
+
 def _call_openrouter(model: str, prompt: str, temperature: float) -> str:
     api_key = os.getenv("OPENROUTER_API_KEY")
     if not api_key:
@@ -262,13 +298,33 @@ def _call_openrouter(model: str, prompt: str, temperature: float) -> str:
                 json=body,
                 timeout=REQUEST_TIMEOUT,
             )
-            if resp.status_code == 429 or resp.status_code >= 500:
+            if resp.status_code == 429:
+                # Distinguish per-minute throttle (transient, ~20s wait) from
+                # daily-quota exhaustion (skip model entirely).
+                body_text = resp.text[:300]
+                if "per-day" in body_text or "per-day-high-balance" in body_text:
+                    raise _DailyLimitExceeded(
+                        f"OpenRouter 429 daily quota: {body_text}"
+                    )
+                wait = _parse_retry_after(resp) or 0
+                # Cap so a runaway header doesn't block forever; minimum 3s so
+                # we don't immediately re-trigger the per-minute counter.
+                wait = max(3.0, min(60.0, wait + random.uniform(0, 1)))
+                log.warning("[%s] 429 per-min, sleeping %.1fs (attempt %d/%d)",
+                            model, wait, attempt + 1, MAX_RETRIES)
+                time.sleep(wait)
+                last_exc = RuntimeError(f"OpenRouter 429: {body_text}")
+                continue
+            if resp.status_code >= 500:
                 raise RuntimeError(f"OpenRouter {resp.status_code}: {resp.text[:200]}")
             if 400 <= resp.status_code < 500:
                 resp.raise_for_status()
             data = resp.json()
             content = data["choices"][0]["message"]["content"]
             return content or ""
+        except _DailyLimitExceeded:
+            # Don't retry; let outer loop move to the next fallback model.
+            raise
         except Exception as exc:  # noqa: BLE001
             last_exc = exc
             sleep_s = RETRY_BASE_DELAY * (2 ** attempt) + random.uniform(0, 1)

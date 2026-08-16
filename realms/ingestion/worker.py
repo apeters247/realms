@@ -293,6 +293,15 @@ def _process_source(session: Session, source: IngestionSource) -> tuple[int, int
     # Preserve the original order for deterministic logging.
     chunk_results.sort(key=lambda t: t[0])
 
+    # Distinguish "all chunks errored" (rate limit, network, model down)
+    # from "all chunks succeeded with 0 entities" (legitimate, e.g. out
+    # of scope). Without this, every-chunk-fails was silently marking
+    # the source COMPLETED with extractions=0 — permanent data loss.
+    if chunks and all(r is None for _, _, r in chunk_results):
+        raise RuntimeError(
+            f"all {len(chunks)} chunks failed extraction — source will be retried"
+        )
+
     for i, chunk, result in chunk_results:
         if result is None:
             continue

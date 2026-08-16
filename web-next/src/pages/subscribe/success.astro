@@ -1,0 +1,190 @@
+---
+import Base from '../../layouts/Base.astro';
+import { url } from '../../lib/url';
+---
+<Base title="Subscription confirmed" description="Your REALMS API subscription is active" noindex>
+  <div class="success">
+    <div class="card">
+      <h1>Subscription confirmed</h1>
+      <p class="lead">Your Pro plan is active. Here's your API key:</p>
+
+      <div id="key-loading" class="section">
+        <p>Waiting for your key to be provisioned...</p>
+      </div>
+
+      <div id="key-ready" class="section" style="display:none;">
+        <code id="key-display" style="display:block; padding: var(--sp-3); background: var(--bg); border: 1px solid var(--rule); border-radius: var(--r-sm); word-break: break-all; font-size: var(--fs-sm); user-select: all; margin-bottom: var(--sp-2);"></code>
+        <button class="btn btn-outline" id="copy-key" style="font-size: var(--fs-xs); padding: var(--sp-1) var(--sp-3);">Copy</button>
+      </div>
+
+      <div id="key-error" class="section" style="display:none;">
+        <p>Could not retrieve your key. <button class="btn btn-outline" id="retry-key" style="font-size: var(--fs-xs); padding: var(--sp-1) var(--sp-3);">Try again</button></p>
+      </div>
+
+      <div class="section">
+        <h2>Quick start</h2>
+        <pre><code>curl -H "X-API-Key: YOUR_KEY" https://realmsouthere.com/entities/?per_page=3</code></pre>
+      </div>
+
+      <div class="section">
+        <h2>MCP config (Claude Code / Cursor)</h2>
+        <pre><code set:html={String.raw`
+{
+  "mcpServers": {
+    "realms": {
+      "command": "npx",
+      "args": ["@realms/mcp"],
+      "env": { "REALMS_API_KEY": "YOUR_KEY" }
+    }
+  }
+}
+`}></code></pre>
+      </div>
+
+      <div class="section">
+        <h2>Key management</h2>
+        <p>Check your usage or status anytime:</p>
+        <pre><code>curl -H "X-API-Key: YOUR_KEY" https://realmsouthere.com/api/subscriptions/status</code></pre>
+      </div>
+
+      <div class="section links">
+        <a class="btn" href={url('/browse/')}>Browse entities</a>
+        <a class="btn btn-outline" href={url('/api-docs/')}>API docs</a>
+      </div>
+    </div>
+  </div>
+</Base>
+
+<script>
+  const loadingEl = document.getElementById('key-loading');
+  const readyEl = document.getElementById('key-ready');
+  const errorEl = document.getElementById('key-error');
+  const keyDisplay = document.getElementById('key-display');
+  const copyBtn = document.getElementById('copy-key');
+  const retryBtn = document.getElementById('retry-key');
+
+  const params = new URLSearchParams(window.location.search);
+  const sessionId = params.get('session_id');
+
+  async function fetchKey() {
+    if (!sessionId) {
+      loadingEl.style.display = 'none';
+      errorEl.style.display = 'block';
+      errorEl.querySelector('p').textContent = 'No session ID found in URL.';
+      return;
+    }
+    loadingEl.style.display = 'block';
+    readyEl.style.display = 'none';
+    errorEl.style.display = 'none';
+    for (let attempt = 0; attempt < 30; attempt++) {
+      try {
+        const resp = await fetch('/api/subscriptions/session/' + sessionId + '/key');
+        if (resp.ok) {
+          const data = await resp.json();
+          keyDisplay.textContent = data.key;
+          loadingEl.style.display = 'none';
+          readyEl.style.display = 'block';
+          // Replace YOUR_KEY placeholders
+          document.querySelectorAll('pre code').forEach(el => {
+            el.textContent = el.textContent.replace(/YOUR_KEY/g, data.key);
+          });
+          return;
+        }
+      } catch (_) {}
+      // Wait 2s before retry
+      await new Promise(r => setTimeout(r, 2000));
+    }
+    loadingEl.style.display = 'none';
+    errorEl.style.display = 'block';
+  }
+
+  fetchKey();
+  copyBtn?.addEventListener('click', () => {
+    const key = keyDisplay.textContent;
+    if (key) {
+      navigator.clipboard.writeText(key).then(() => {
+        copyBtn.textContent = 'Copied!';
+        setTimeout(() => { copyBtn.textContent = 'Copy'; }, 2000);
+      });
+    }
+  });
+  retryBtn?.addEventListener('click', fetchKey);
+</script>
+
+<style>
+  .success {
+    max-width: 640px;
+    margin: 0 auto;
+    padding: var(--sp-10) var(--sp-5);
+  }
+  .card {
+    background: var(--bg-alt);
+    border: 1px solid var(--rule);
+    border-radius: var(--r-lg);
+    padding: var(--sp-8);
+  }
+  h1 {
+    font-family: var(--font-serif);
+    font-size: var(--fs-xl);
+    margin-bottom: var(--sp-3);
+  }
+  .lead {
+    color: var(--ink-dim);
+    font-size: var(--fs-base);
+    line-height: 1.55;
+    margin-bottom: var(--sp-6);
+  }
+  .section {
+    margin-bottom: var(--sp-6);
+  }
+  .section h2 {
+    font-family: var(--font-serif);
+    font-size: var(--fs-base);
+    margin-bottom: var(--sp-2);
+  }
+  .section p {
+    color: var(--ink-dim);
+    font-size: var(--fs-sm);
+    margin-bottom: var(--sp-2);
+  }
+  pre {
+    background: var(--bg);
+    border: 1px solid var(--rule-soft);
+    border-radius: var(--r-md);
+    padding: var(--sp-4);
+    overflow-x: auto;
+    font-size: var(--fs-xs);
+    line-height: 1.5;
+  }
+  code {
+    font-family: var(--font-mono);
+  }
+  .btn {
+    display: inline-block;
+    padding: var(--sp-3) var(--sp-5);
+    background: var(--accent);
+    color: white;
+    border-radius: var(--r-md);
+    text-decoration: none;
+    font-size: var(--fs-sm);
+    font-weight: 500;
+    cursor: pointer;
+    border: none;
+    font-family: var(--font-sans);
+  }
+  .btn-outline {
+    background: transparent;
+    border: 1px solid var(--rule);
+    color: var(--ink-dim);
+  }
+  .btn-outline:hover {
+    border-color: var(--ink-faint);
+    color: var(--ink);
+  }
+  .links {
+    display: flex;
+    gap: var(--sp-3);
+    padding-top: var(--sp-4);
+    border-top: 1px solid var(--rule-soft);
+  }
+</style>

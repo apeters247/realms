@@ -1,10 +1,13 @@
 """Batch-classify every co_occurs_with edge into a typed relationship.
 
-Rotates across the 3 confirmed-working free-tier OpenRouter models to
-dodge per-model rate limits:
-  - nvidia/nemotron-3-super-120b-a12b:free
-  - openai/gpt-oss-120b:free
-  - z-ai/glm-4.5-air:free
+Rotates across confirmed-working free-tier OpenRouter models to
+dodge per-model rate limits. Current working set (tested 2026-05):
+
+Tier 1 (120B+): nvidia/nemotron-3-super-120b-a12b:free, openai/gpt-oss-120b:free
+Tier 2 (24-80B): google/gemma-4-31b-it:free, nvidia/nemotron-3-nano-30b-a3b:free,
+                 google/gemma-4-26b-a4b-it:free
+Tier 3 (small+owl): z-ai/glm-4.5-air:free, openai/gpt-oss-20b:free,
+                    openrouter/owl-alpha
 
 Resume-safe: checkpoints the highest processed edge id to a file so a
 killed run can pick up where it left off.
@@ -61,25 +64,17 @@ CHECKPOINT_DIR.mkdir(parents=True, exist_ok=True)
 #
 # Ranked by size × reasoning quality × JSON-output cleanness as of 2026-04.
 FREE_MODELS = [
-    # Tier 1 — 120B+, strongest free reasoners
+    # Tier 1 — 120B+, strongest free reasoners (verified working 2026-05)
     "nvidia/nemotron-3-super-120b-a12b:free",
     "openai/gpt-oss-120b:free",
-    "minimax/minimax-m2.5:free",
-    "nousresearch/hermes-3-llama-3.1-405b:free",
-    # Tier 2 — 24-80B instruct-tuned
-    "qwen/qwen3-next-80b-a3b-instruct:free",
-    "meta-llama/llama-3.3-70b-instruct:free",
+    # Tier 2 — 24-80B instruct-tuned (verified working 2026-05)
     "google/gemma-4-31b-it:free",
     "nvidia/nemotron-3-nano-30b-a3b:free",
     "google/gemma-4-26b-a4b-it:free",
-    "cognitivecomputations/dolphin-mistral-24b-venice-edition:free",
-    "google/gemma-3-27b-it:free",
-    # Tier 3 — small but reliable
+    # Tier 3 — small + owl-alpha (verified working 2026-05)
+    "openrouter/owl-alpha",
     "z-ai/glm-4.5-air:free",
     "openai/gpt-oss-20b:free",
-    "inclusionai/ling-2.6-flash:free",
-    "arcee-ai/trinity-large-preview:free",
-    "google/gemma-3-12b-it:free",
 ]
 
 # Daily-cap error codes from OpenRouter. We detect these and stop the

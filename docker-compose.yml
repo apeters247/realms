@@ -22,6 +22,12 @@ x-common-env: &common-env
   REALMS_REVIEW_REVIEWER: ${REALMS_REVIEW_REVIEWER:-anonymous}
   REALMS_REVIEW_MODEL: ${REALMS_REVIEW_MODEL:-google/gemini-2.0-flash-001}
   REALMS_REVIEW_FALLBACK: ${REALMS_REVIEW_FALLBACK:-deepseek/deepseek-chat}
+  # Monetization
+  STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY:-}
+  STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET:-}
+  STRIPE_PRICE_PRO_MONTHLY: ${STRIPE_PRICE_PRO_MONTHLY:-}
+  # Frontend
+  PUBLIC_REALMS_FRONTEND_API_KEY: ${REALMS_FRONTEND_API_KEY:-}
 
 services:
   realms-api:
@@ -50,13 +56,12 @@ services:
       HOST: 0.0.0.0
       PORT: 8001
       LOG_LEVEL: ${LOG_LEVEL:-info}
-      # Override to 600 during SSG builds: REALMS_RATE_LIMIT_PER_MINUTE=600 docker compose up
-      REALMS_RATE_LIMIT_PER_MINUTE: ${REALMS_RATE_LIMIT_PER_MINUTE:-60}
+      REALMS_RATE_LIMIT_PER_MINUTE: ${REALMS_RATE_LIMIT_PER_MINUTE:-3000}
+      REALMS_API_KEY_AUTH: on
     volumes:
       - ./realms:/app/realms
       - ./scripts:/app/scripts
       - ./web:/app/web
-      - ./web-next/dist:/app/web-next/dist
       - ./migrations:/app/migrations
       - ./alembic.ini:/app/alembic.ini
       - realms-raw-cache:/app/data/raw
@@ -91,139 +96,12 @@ services:
       REALMS_INGESTOR_POLL_INTERVAL: "20"
       REALMS_INGESTOR_IDLE_SLEEP: "60"
       REALMS_INGESTOR_MAX_CHUNKS: "8"
-      # Free-tier OpenRouter models are rate-limited (~20 req/min each).
-      # Keep concurrency low and rely on the multi-model fallback chain.
-      REALMS_INGESTOR_CHUNK_CONCURRENCY: "2"
-      REALMS_EXTRACTION_MODEL: nvidia/nemotron-3-super-120b-a12b:free
-      REALMS_EXTRACTION_FALLBACK_MODELS: openai/gpt-oss-120b:free,google/gemma-4-26b-a4b-it:free,nvidia/nemotron-3-nano-30b-a3b:free,openai/gpt-oss-20b:free
-      REALMS_INTEGRITY_GATE: "on"
-      REALMS_INTEGRITY_ACCEPT: "0.85"
-      REALMS_INTEGRITY_FLAG: "0.65"
-    volumes:
-      - ./realms:/app/realms
-      - ./scripts:/app/scripts
-      - realms-raw-cache:/app/data/raw
-      - realms-pubmed-cache:/app/data/pubmed
-      - realms-archive-cache:/app/data/archive_org
-    command: ["python", "-m", "scripts.run_ingestor"]
-    healthcheck:
-      test: ["CMD", "python", "-c", "import os, sys; sys.exit(0 if os.path.exists('/proc/1/status') else 1)"]
-      interval: 30s
-      timeout: 5s
-      retries: 3
-      start_period: 30s
-    restart: unless-stopped
-    networks:
-      - estimabio-network
-
-  # Second ingestor instance — doubles throughput. Same image, same DB,
-  # SELECT FOR UPDATE SKIP LOCKED ensures no two workers claim the same source.
-  realms-ingestor-2:
-    image: realms:latest
-    container_name: realms-ingestor-2
-    depends_on:
-      realms-api:
-        condition: service_healthy
-    logging:
-      driver: json-file
-      options:
-        max-size: "10m"
-        max-file: "5"
-    deploy:
-      resources:
-        limits:
-          cpus: '1.5'
-          memory: '1g'
-    environment:
-      <<: *common-env
-      REALMS_INGESTOR_POLL_INTERVAL: "20"
-      REALMS_INGESTOR_IDLE_SLEEP: "60"
-      REALMS_INGESTOR_MAX_CHUNKS: "8"
-      REALMS_INGESTOR_CHUNK_CONCURRENCY: "2"
-      # Free-tier models; different lead so the 4 workers don't all hit
-      # the same model's rate limit simultaneously.
+      # OpenRouter free tier is account-wide: 20 req/min and 2000 req/day.
+      # Single worker, single chunk-at-a-time. Multiple workers stampeded
+      # the rate limit and silently lost sources (fixed 2026-05-14).
+      REALMS_INGESTOR_CHUNK_CONCURRENCY: "1"
       REALMS_EXTRACTION_MODEL: openai/gpt-oss-120b:free
-      REALMS_EXTRACTION_FALLBACK_MODELS: nvidia/nemotron-3-super-120b-a12b:free,google/gemma-4-26b-a4b-it:free,openai/gpt-oss-20b:free,nvidia/nemotron-3-nano-30b-a3b:free
-      REALMS_INTEGRITY_GATE: "on"
-      REALMS_INTEGRITY_ACCEPT: "0.85"
-      REALMS_INTEGRITY_FLAG: "0.65"
-    volumes:
-      - ./realms:/app/realms
-      - ./scripts:/app/scripts
-      - realms-raw-cache:/app/data/raw
-      - realms-pubmed-cache:/app/data/pubmed
-      - realms-archive-cache:/app/data/archive_org
-    command: ["python", "-m", "scripts.run_ingestor"]
-    healthcheck:
-      test: ["CMD", "python", "-c", "import os, sys; sys.exit(0 if os.path.exists('/proc/1/status') else 1)"]
-      interval: 30s
-      timeout: 5s
-      retries: 3
-      start_period: 30s
-    restart: unless-stopped
-    networks:
-      - estimabio-network
-
-  realms-ingestor-3:
-    image: realms:latest
-    container_name: realms-ingestor-3
-    depends_on:
-      realms-api:
-        condition: service_healthy
-    logging:
-      driver: json-file
-      options: { max-size: "10m", max-file: "5" }
-    deploy:
-      resources:
-        limits: { cpus: '1.5', memory: '1g' }
-    environment:
-      <<: *common-env
-      REALMS_INGESTOR_POLL_INTERVAL: "20"
-      REALMS_INGESTOR_IDLE_SLEEP: "60"
-      REALMS_INGESTOR_MAX_CHUNKS: "8"
-      REALMS_INGESTOR_CHUNK_CONCURRENCY: "2"
-      REALMS_EXTRACTION_MODEL: openai/gpt-oss-20b:free
-      REALMS_EXTRACTION_FALLBACK_MODELS: nvidia/nemotron-3-nano-30b-a3b:free,inclusionai/ling-2.6-flash:free,openai/gpt-oss-120b:free,nvidia/nemotron-3-super-120b-a12b:free
-      REALMS_INTEGRITY_GATE: "on"
-      REALMS_INTEGRITY_ACCEPT: "0.85"
-      REALMS_INTEGRITY_FLAG: "0.65"
-    volumes:
-      - ./realms:/app/realms
-      - ./scripts:/app/scripts
-      - realms-raw-cache:/app/data/raw
-      - realms-pubmed-cache:/app/data/pubmed
-      - realms-archive-cache:/app/data/archive_org
-    command: ["python", "-m", "scripts.run_ingestor"]
-    healthcheck:
-      test: ["CMD", "python", "-c", "import os, sys; sys.exit(0 if os.path.exists('/proc/1/status') else 1)"]
-      interval: 30s
-      timeout: 5s
-      retries: 3
-      start_period: 30s
-    restart: unless-stopped
-    networks:
-      - estimabio-network
-
-  realms-ingestor-4:
-    image: realms:latest
-    container_name: realms-ingestor-4
-    depends_on:
-      realms-api:
-        condition: service_healthy
-    logging:
-      driver: json-file
-      options: { max-size: "10m", max-file: "5" }
-    deploy:
-      resources:
-        limits: { cpus: '1.5', memory: '1g' }
-    environment:
-      <<: *common-env
-      REALMS_INGESTOR_POLL_INTERVAL: "20"
-      REALMS_INGESTOR_IDLE_SLEEP: "60"
-      REALMS_INGESTOR_MAX_CHUNKS: "8"
-      REALMS_INGESTOR_CHUNK_CONCURRENCY: "2"
-      REALMS_EXTRACTION_MODEL: nvidia/nemotron-3-super-120b-a12b:free
-      REALMS_EXTRACTION_FALLBACK_MODELS: google/gemma-4-26b-a4b-it:free,openai/gpt-oss-120b:free,nvidia/nemotron-3-nano-30b-a3b:free,inclusionai/ling-2.6-flash:free
+      REALMS_EXTRACTION_FALLBACK_MODELS: google/gemma-4-31b-it:free,nvidia/nemotron-3-super-120b-a12b:free,google/gemma-4-26b-a4b-it:free,openai/gpt-oss-20b:free,nvidia/nemotron-3-nano-30b-a3b:free,openrouter/owl-alpha
       REALMS_INTEGRITY_GATE: "on"
       REALMS_INTEGRITY_ACCEPT: "0.85"
       REALMS_INTEGRITY_FLAG: "0.65"
@@ -273,6 +151,36 @@ services:
       timeout: 5s
       retries: 3
       start_period: 30s
+    restart: unless-stopped
+    networks:
+      - estimabio-network
+
+  realms-mcp:
+    image: realms:latest
+    container_name: realms-mcp
+    depends_on:
+      realms-api:
+        condition: service_healthy
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: '256m'
+    environment:
+      <<: *common-env
+      REALMS_API_ORIGIN: http://realms-api:8001
+      REALMS_API_KEY: ${REALMS_MCP_API_KEY:-}
+    volumes:
+      - ./realms:/app/realms
+      - ./scripts:/app/scripts
+    ports:
+      - "127.0.0.1:8006:8002"
+    command: ["python", "-m", "scripts.run_mcp_server", "--transport", "http", "--port", "8002"]
     restart: unless-stopped
     networks:
       - estimabio-network

@@ -3,59 +3,54 @@
 Read-only public API + long-running ingestion pipeline for a provenance-tracked
 knowledge base of spiritual entities documented across global indigenous traditions.
 
-## Status (as of 2026-04-19)
+Live at https://realmsoutthere.com.
+
+## Status (as of 2026-05-14)
 
 | Phase | Status |
 |-------|--------|
 | 1 — Read-only API, SQLAlchemy ORM, seed data, integration tests | ✅ done |
-| 2A — LLM ingestion pipeline (Wikipedia → Claude Sonnet → DB) | ✅ running |
-| 2B — Web frontend (D3 hierarchy, Leaflet map, Cytoscape graph) | ✅ done |
+| 2A — LLM ingestion pipeline (Wikipedia → free OpenRouter models → DB) | ✅ running |
+| 2B — Web frontend (Astro 5 + Svelte 5 + Tailwind 4, Tufte/Obsidian redesign) | ✅ done |
 | 2C — Neo4j sync worker with delete-detection | ✅ running |
 | 2D — End-to-end deploy verification | ✅ done |
 | 2E — Rate limiting, metrics, Alembic baseline | ✅ done |
 | 2F — Pair-relationship classifier (Gemini Flash via OpenRouter) | ✅ done |
-| 2G — Extractor v3 role fields, stub entities, review queue, ego graph, fuzzy search, export | ✅ done |
+| 2G — Extractor v5 role fields, stub entities, review queue, ego graph, fuzzy search, export | ✅ done |
 | 3  — PubMed + archive.org corroboration, tier badges | ✅ done |
 | 4  — Inline LLM-assisted review writes (approve/reject/edit/merge/suggest) with audit trail | ✅ done |
 | 5  — Temporal dimensions (first-attested, evidence period, timeline) | ✅ done |
 | 6  — Cross-database linking (Wikidata SPARQL, VIAF SRU) | ✅ done |
+| 7  — Integrity gate (accept ≥0.85, flag ≥0.65, reject below) | ✅ running |
 
-## Live Data (current snapshot)
+## Live Data (current snapshot, 2026-05-14)
 
-- 266 entities across 95+ traditions
-- 439 LLM extractions, avg confidence 0.88
-- 980 relationships (12 `parent_of`, 15 `sibling_of`, 7 `aspect_of`, plus co-occurrence)
-- 107 cultures, 65 geographic regions promoted from extractions
-- 44 source URLs seeded (Amazonian, African, Siberian, Native American, Polynesian, Entheogenic)
+- 18,217 entities — 10,888 deity · 1,885 nature_spirit · 1,000 demonic · 526 ancestor · 463 angelic · 455 animal_ally · 445 human_specialist · 37 plant_spirit · 2,516 unclassified
+- 41,932 LLM extractions, average consensus confidence 0.79
+- 130,632 relationships — 30,684 typed (sibling_of 6,456 · allied_with 5,317 · parent_of 4,710 · syncretized_with 3,451 · enemy_of 2,466 · consort_of 2,422 · manifests_as 2,283 · aspect_of 1,423 · serves 1,313 · created_by 334 · teacher_of 315 · equivalent_to 87 · cognate_of 59 · …) plus 99,948 weak `co_occurs_with`
+- 4,236 cultures, 4,199 geographic regions promoted from extractions (canonicalization pending — many synonymous forms still split, e.g. Greek / Greek mythology / Ancient Greek)
+- 12,138 source URLs (Wikipedia + Wikisource encyclopedias + PubMed + archive.org); 10,126 completed
+- 8,297 entities (46%) carry a `first_documented_year` from extractor v4+
+- Review status: 18,014 unreviewed · 185 merged · 18 out_of_scope
 
-## Architecture
+## Documentation
 
-```
-  Postgres ←──────── Neo4j
-       │                ▲
-       │                │ realms-neo4j-sync (30s loop, MERGE + delete-stale)
-       ▼                │
-   realms-api  ──── static web/ at /app/ (D3 + Leaflet + Cytoscape)
-       ▲                    ▲
-       │                    │
-       │                    pair classifier (OpenRouter Gemini Flash, one-shot)
-       │
-       │   LiteLLM proxy → Claude Sonnet 4.6 / rombos-72b fallback
-       ▲                    ▲
-       │                    │ extract entities + role fields (v3 prompt)
-   realms-ingestor  ── fetch → chunk → extract → normalize → role-edges → promote-dims
-       ▲                                            ↑
-       │                                            │
-   ingestion_sources (Wikipedia URLs)        stubs created for unresolved role targets
-```
+Full documentation is in [`docs/`](docs/README.md):
 
-## Docker services
-
-| Container | Role | Port |
-|-----------|------|------|
-| `realms-api` | FastAPI + web UI | 8004 → 8001 |
-| `realms-ingestor` | Wikipedia entity extraction loop | — |
-| `realms-neo4j-sync` | Postgres → Neo4j mirror | — |
+| Document | Description |
+|----------|-------------|
+| `docs/01-overview.md` | Project vision, live stats, status |
+| `docs/02-architecture.md` | System architecture and data flow |
+| `docs/03-data-model.md` | All 12 ORM models and schema |
+| `docs/04-api.md` | Complete API reference |
+| `docs/05-ingestion-pipeline.md` | Deep-dive: fetch → LLM extract → normalize |
+| `docs/06-frontend.md` | Astro/Svelte frontend architecture |
+| `docs/07-graph.md` | Neo4j graph schema and sync |
+| `docs/08-deployment.md` | Docker, nginx, Cloudflare guide |
+| `docs/09-testing.md` | Test structure and how to run |
+| `docs/10-operations.md` | Metrics, logging, backup, incident response |
+| `docs/guides/getting-started.md` | First-time dev setup |
+| `docs/guides/contributing.md` | PR workflow and code conventions |
 
 ## Quick start
 
@@ -67,153 +62,43 @@ docker compose up -d --build
 docker compose exec realms-api python -m scripts.seed_realms      # one-time seed
 docker compose exec realms-api python -m scripts.seed_sources     # load Wikipedia URLs
 
-open http://127.0.0.1:8004/app/
+open http://127.0.0.1:8005/app/
 ```
 
-## API endpoints
+## API at a glance
 
-Base: `http://127.0.0.1:8004`
+Base: `http://127.0.0.1:8005` (prod: `https://realmsouthere.com`)
 
-**Browse**
-- `/app/` — Web UI (entity browser, hierarchy, graph, map, stats, review queue)
-- `/docs` — OpenAPI Swagger
-- `/api/health` — Liveness probe
+| Category | Endpoints |
+|----------|-----------|
+| Entities | `GET /entities/` (list+filter), `GET /entities/{id}` (detail) |
+| Classes | `GET /entity-classes/` |
+| Hierarchy | `GET /hierarchy/tree`, `GET /hierarchy/flat` |
+| Relationships | `GET /relationships/` |
+| Cultures | `GET /cultures/`, `GET /cultures/{id}` |
+| Regions | `GET /regions/`, `GET /regions/{id}` |
+| Sources | `GET /sources/`, `GET /sources/{id}`, `GET /extractions/{id}` |
+| Search | `GET /search?q=`, `GET /search/similar`, `POST /search/advanced` |
+| Graph | `GET /graph/`, `GET /graph/ego/{id}` |
+| Stats | `GET /stats/`, `GET /metrics/ingestion`, `GET /metrics/activity` |
+| Review | `GET /review/stats`, `GET /review/entities` (token-gated writes) |
+| Export | `GET /export/entities.json\|.csv`, `GET /export/relationships.csv` |
+| Corroboration | `GET /corroboration/{id}` |
+| Timeline | `GET /timeline/entities`, `GET /timeline/summary` |
+| External links | `GET /external-links/{id}` |
+| Integrity | `GET /integrity/summary`, `GET /integrity/audits` |
+| Feedback | `POST /feedback` |
+| Collections | `GET /collections`, `GET /collections/{slug}` |
+| Changelog | `GET /changelog` |
+| OG images | `GET /og/entity/{id}.png` |
+| Health | `GET /api/health`, `GET /e/{entity_id}` (short permalink) |
 
-**Data**
-- `GET /entities/` — List with filters: type, alignment, realm, confidence, culture, region, q
-- `GET /entities/{id}` — Full detail with in + out relationships, plant connections, sources, quotes
-- `GET /entity-classes/` — Taxonomy classes
-- `GET /hierarchy/tree` — D3-format nested tree
-- `GET /cultures/` / `/cultures/{id}` — 107 cultures, auto-promoted
-- `GET /regions/` / `/regions/{id}` — 65 regions
-- `GET /sources/` / `/sources/{id}` — 44 sources with ingestion status
-- `GET /extractions/{id}` — Raw LLM extraction payload
-- `GET /relationships/` — Semantic + co-occurrence edges
-
-**Graph**
-- `GET /graph/?culture=…&rel_type=semantic&max_nodes=250` — Cytoscape nodes + edges
-- `GET /graph/ego/{center_id}?depth=2&semantic_only=true` — Ego subgraph BFS
-
-**Search**
-- `GET /search/?q=…` — Global keyword search
-- `POST /search/advanced` — Structured query
-- `GET /search/similar?q=…` — Trigram fuzzy match ("orisha" → Orishas, Oricha, …)
-
-**Ops & metrics**
-- `GET /stats/` — Aggregate counts by type, alignment, realm, culture
-- `GET /metrics/ingestion` — Queue depth + throughput
-- `GET /metrics/activity?minutes=60` — Recent changes: sources, new edges, semantic additions
-- `GET /review/stats` — Low-confidence / single-source / isolated counts
-- `GET /review/entities?confidence_max=0.7&isolated_only=true` — QA candidate queue
-
-**Export**
-- `GET /export/entities.csv` / `.json`
-- `GET /export/relationships.csv`
-- `GET /export/cultures.json`
-- `GET /export/sources.json`
-
-## Ingestion pipeline
-
-```
-1. Claim a pending source (SELECT FOR UPDATE SKIP LOCKED)
-2. Fetch Wikipedia text via REST API; cache to data/raw/<sha>.txt
-3. Chunk by paragraph up to ~3500 chars, tracking section headings
-4. Per chunk → Claude Sonnet 4.6 (LiteLLM → fallback Ollama rombos-72b)
-   with retry/backoff and v3 prompt that requests 14 role fields
-5. Normalize each extracted entity:
-   - Exact name match OR fuzzy stem match (diacritic-strip + plural-tolerant)
-   - Upsert: merge powers / domains / alternate_names / sources
-   - Stub creation for unresolved role-field targets
-6. Turn role claims into typed edges (parent_of, consort_of, teacher_of, etc.)
-   at strength=strong, confidence 0.7–0.85
-7. Add weak co_occurs_with edges between every pair extracted in same chunk
-8. promote_all() — backfill Culture + GeographicRegion rows from entity
-   cultural_associations / geographical_associations JSONB
-9. Mark source completed with processed_at timestamp
-```
-
-Orphan recovery on startup: any source stuck in `processing` > 30 min is reset to `pending`.
-
-## Relationship classification
-
-Two stages in the current pipeline:
-
-1. **Extractor v3 (primary):** LLM emits explicit role fields per entity
-   (`parents: [Yemoja]`, `consorts: [Oshun]`, etc.). These become strong typed
-   edges directly, with the source quote stored in `EntityRelationship.description`.
-
-2. **Pair classifier (secondary):** For existing `co_occurs_with` edges, a
-   one-shot OpenRouter Gemini Flash script reads the shared chunk text and
-   classifies into the same 14 relationship types. Runs at ~$0.22/M tokens,
-   ~$0.15 for all ~1000 edges.
-
-Current semantic edges: 43 (12 parent_of, 15 sibling_of, 7 aspect_of, 3 child_of,
-2 manifests_as, 2 created_by, 1 serves, 1 ruled_by, 1 allied_with + 15 associated_with).
-Growing as v3 re-ingestion completes richer Yoruba/Vodou/Santería sources.
-
-## Neo4j graph
-
-Mirrors Postgres every 30s. Cypher example:
-
-```cypher
-MATCH (a:Entity)-[r]->(b:Entity)
-WHERE a.consensus_confidence > 0.85 AND type(r) <> 'CO_OCCURS_WITH'
-RETURN a, r, b LIMIT 50;
-```
-
-Sync is bidirectional (updates + deletes): entities removed from Postgres are
-`DETACH DELETE`d from Neo4j within 30 seconds.
+Full reference: [`docs/04-api.md`](docs/04-api.md)
 
 ## Testing
 
 ```bash
-docker exec -e POSTGRES_PASSWORD="$POSTGRES_PASSWORD" \
-            -e REALMS_TEST_DB=realms_test \
-            realms-api pytest tests/ -v
+docker compose exec realms-api pytest tests/ -v
 ```
 
-**52 tests passing** (47 integration tests against real Postgres, 5 unit tests for the chunker).
-
-## Migrations
-
-```bash
-docker exec realms-api alembic revision --autogenerate -m "add X"
-docker exec realms-api alembic upgrade head
-```
-
-Baseline `20260418_0001` (no-op). `20260419_0002` adds pg_trgm + GIN indexes for
-similarity search. `run_realms_api.sh` runs `alembic upgrade head` automatically.
-
-## Phase 3–6 quickstart
-
-**Enable review writes** (Phase 4):
-```bash
-echo 'REALMS_REVIEW_TOKEN=my-secret-token' >> .env
-docker compose up -d realms-api
-```
-
-**Seed corroboration sources** (Phase 3):
-```bash
-# PubMed: 3 seed queries per entity (polite to NCBI, takes ~5 min for 266 entities)
-docker exec realms-api python -m scripts.seed_pubmed_sources --per-entity 3
-# archive.org: curated list in data/archive_seeds.yaml
-docker exec realms-api python -m scripts.seed_archive_sources
-```
-
-**Auto-link to external authorities** (Phase 6):
-```bash
-docker exec realms-api python -m scripts.link_external_ids --system wikidata --dry-run
-docker exec realms-api python -m scripts.link_external_ids --system wikidata
-docker exec realms-api python -m scripts.link_external_ids --system viaf
-```
-Auto-accepts only when top candidate confidence ≥ 0.85 and gap ≥ 2× over
-runner-up. Otherwise logs a `review_actions` row with `action='external_link_suggest'`
-for manual pick.
-
-**Timeline** (Phase 5): `/timeline/entities?start_year=-2000&end_year=500` and
-`/timeline/summary`. Only populated for entities whose extractions carried a
-year (extractor prompt v4).
-
-## Retired phases
-
-All original roadmap items (Phases 1 through 6) are now implemented.
+**52 tests passing** (47 integration, 5 unit). See [`docs/09-testing.md`](docs/09-testing.md).

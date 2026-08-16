@@ -13,7 +13,7 @@ Take REALMS from its current state (489 entities, Phase 7 UI shipped, 0 entities
 
 ## Non-goals
 
-- User accounts, logins, paywalls, ads, analytics beyond privacy-first counts.
+- User accounts, logins, ads, analytics beyond privacy-first counts.
 - Tier 3 entheogenic visionary material (McKenna machine-elves, DMT entities as spirits).
 - Tier 4 modern occult / fiction / tulpamancy / UFO contactee material.
 - Real-time collaboration, multiplayer editing.
@@ -27,7 +27,7 @@ Take REALMS from its current state (489 entities, Phase 7 UI shipped, 0 entities
 3. **Public-readable, not editable.** No accounts, no tracking cookies, no JS required for content. "Report an error" is the only contribution path.
 4. **Every URL is permanent, citable, crawlable.** Canonical URLs, stable entity IDs, Schema.org JSON-LD, RSS feed, sitemap.
 5. **Ship data under CC-BY-4.0.** Full dump downloadable; GitHub repo public.
-6. **Respectful of living traditions.** Dedicated ethics page, explicit acknowledgement of indigenous knowledge primacy, no monetization of sacred material.
+6. **Respectful of living traditions.** Dedicated ethics page, explicit acknowledgement of indigenous knowledge primacy. The public website remains free to browse; API access for commercial/programmatic use is a paid service.
 
 ---
 

@@ -19,8 +19,14 @@ async function _sleep(ms: number): Promise<void> {
   return new Promise(r => setTimeout(r, ms));
 }
 
+// Frontend API key (injected at build time as PUBLIC_ or at runtime in browser).
+const _apiKey = typeof process !== 'undefined' && process.env?.PUBLIC_REALMS_FRONTEND_API_KEY
+  ? process.env.PUBLIC_REALMS_FRONTEND_API_KEY
+  : (typeof window !== 'undefined' && (window as any).__REALMS_API_KEY) || '';
+
 export async function api<T = unknown>(path: string, init: RequestInit = {}): Promise<T> {
   const url = path.startsWith('http') ? path : `${apiOrigin()}${path}`;
+
   // Rate-limit aware with up to 4 retries on 429 / 5xx.
   let lastStatus = 0;
   for (let attempt = 0; attempt < 5; attempt++) {
@@ -28,6 +34,7 @@ export async function api<T = unknown>(path: string, init: RequestInit = {}): Pr
       ...init,
       headers: {
         accept: 'application/json',
+        'X-API-Key': _apiKey || undefined as any,
         ...(init.headers || {}),
       },
     });
@@ -61,10 +68,7 @@ export async function apiAll<T>(path: string, perPage = 100): Promise<T[]> {
     if (page >= tp || rows.length === 0) break;
     page += 1;
     if (page > 500) break; // hard cap
-    // Gentle pacing at build time to avoid tripping the server's rate limiter.
-    if (page % 10 === 0) {
-      await _sleep(120);
-    }
+
   }
   return all;
 }
